@@ -63,8 +63,6 @@ From the 7-segment display datasheet, we obtained that the forward voltage per s
 
 ## Results and Discussion
 
-DID YOU ACCOMPLISH ALL OF THE PRESRIBED TASKS? AS APPROPRIATE, HOW DID THE DESIGN PERFORM (HOW FAST/ACCURATE/RELIABLE WAS IT?)
-
 ### Testbench Simulation
 
 ![Figure 3: A screenshot of a QuestaSim simulation for the 7 segment display](images/lab1_7_segment.png)
@@ -280,3 +278,10 @@ Library Inclusions: If using Radiant, ensure the target family is set to iCE40UP
 </details>
 
 ### Summary
+When I asked Gemini to implement the LED blinker at first, there is one obvious mistake in its code: 
+```
+module led_blinker_2hz (
+    output logic led = 1'b0
+);
+```
+Gemini declared an initialization value directly inside the blinker module's output port list, which is illegal. Thus, the code quality of Gemini remains questionable, even though the rest of the code looks clean and well-documented. However, when I told Gemini that its code did not synthesize, even given this minimal information, Gemini was able to pinpoint the issue and fix its own code in one go. This proves that the model has a strong debugging ability. Therefore, in the future, I'd be curious to see what AI can do as a debugging buddy, as it seems to have quite some potential.

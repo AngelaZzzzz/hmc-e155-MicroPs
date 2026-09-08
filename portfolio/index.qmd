@@ -11,4 +11,4 @@ about:
           text: Github
           href: https://github.com/AngelaZzzzz
 ---
-Angela Zheng is a junior Electrical Engineering major at [Harvey Mudd College](https://hmc.edu). In her free time, Angela enjoys spending time with her dog Charlie, her hens Becky and Becca, as well as her unnamed 42 quails.
+Angela Zheng is a junior Electrical Engineering major at [Harvey Mudd College](https://hmc.edu). She enjoys digital design as well as PCB design. In her free time, Angela enjoys spending time with her dog Charlie, her hens Becky and Becca, as well as her unnamed 42 quails.

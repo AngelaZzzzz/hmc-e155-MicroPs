@@ -1,6 +1,6 @@
 ---
-title: "Hello Quarto"
-description: "Welcome to my Quarto portfolio"
+title: "Hello E155"
+description: "Welcome! Take a seat and have a sip on my first post"
 author: "Angela Zheng"
 date: "9/8/2026"
 categories:
@@ -8,3 +8,5 @@ categories:
   - labreport
 draft: false
 ---
+
+A little reflection on this week: I felt like this lab was a very good refresher on SystemVerilog coding and testbench creation. With over three months of no-contact with SystemVerilog my skills have became a little rusty. Although this lab was a little bit bumpy at first due to all the Radiant issues, I was able to ramp back up pretty fast and got the 7-segment display working in one try. Plus, Quarto is pretty cool! Never have I typed so much Markdown at once, not even during my annoying Amazon internal tool development over the summer.
