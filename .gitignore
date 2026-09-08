@@ -20,3 +20,7 @@ impl*/
 **/Debug/
 *.emSession
 *.jlink
+
+## quarto
+/.quarto/
+/_site/
