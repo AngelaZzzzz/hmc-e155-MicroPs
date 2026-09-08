@@ -1,0 +1,26 @@
+# Lattice Radiant files
+*.html
+impl*/
+*.xml
+.build_status
+.run_manager.ini
+.recovery
+.spread_sheet.ini
+.spreadsheet_view.ini
+*.dir/
+*.log
+*.tcl
+*.ccl
+*.srp
+*.dmp
+._Real_._Math_.vhd
+
+# Segger Embedded Studio
+**/Output/
+**/Debug/
+*.emSession
+*.jlink
+
+## quarto
+/.quarto/
+/_site/
