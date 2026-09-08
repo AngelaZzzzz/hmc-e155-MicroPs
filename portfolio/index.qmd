@@ -1,0 +1,14 @@
+---
+title: "E155 Portfolio"
+image: images/angela_zheng_rocket.jpg
+about:
+    template: jolla
+    links:
+        - icon: linkedin
+          text: LinkedIn
+          href: https://www.linkedin.com/in/angela-zheng-240a0b218
+        - icon: github
+          text: Github
+          href: https://github.com/AngelaZzzzz
+---
+Angela Zheng is a junior Electrical Engineering major at [Harvey Mudd College](https://hmc.edu). In her free time, Angela enjoys spending time with her dog Charlie, her hens Becky and Becca, as well as her unnamed 42 quails.
