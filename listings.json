@@ -1,14 +1,18 @@
 [
   {
-    "listing": "/blog.html",
-    "items": [
-      "/posts/first-post.html"
-    ]
+    "listing": "/resources.html",
+    "items": []
   },
   {
     "listing": "/labs.html",
     "items": [
       "/labs/lab1/lab1.html"
+    ]
+  },
+  {
+    "listing": "/blog.html",
+    "items": [
+      "/posts/first-post.html"
     ]
   }
 ]
