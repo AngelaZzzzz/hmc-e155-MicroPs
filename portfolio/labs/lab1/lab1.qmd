@@ -65,22 +65,22 @@ From the 7-segment display datasheet, we obtained that the forward voltage per s
 
 ### Testbench Simulation
 
-![Figure 3: A screenshot of a QuestaSim simulation for the 7 segment display](images/lab1_7_segment.png)
+![Figure 3: A screenshot of a QuestaSim simulation for the 7 segment display.](images/lab1_7_segment.png)
 
 Figure 3 shows a screenshot of the Questa simulation of the 7 segement decoder module. We tested across all 16 possible input combinations, as demonstrated in the second signal in the screenshot (`s`), with their respective output captured by the third signal in the screenshot (`seg`). All tests pass with no errors.
 
 <details>
 <summary>Other testbenches</summary>
 
-![Figure 4: A screenshot of a QuestaSim simulation for the top level design](images/lab1_top.png)
+![Figure 4: A screenshot of a QuestaSim simulation for the top level design.](images/lab1_top.png)
 
-Figure 4 shows a screenshot of the Questa simulation of the lab1_az top level module. All tests pass with no errors.
+Figure 4 shows a screenshot of the Questa simulation of the lab1_az top level module. As the top signal `CLKHF` shows, the on-chip high-speed oscillator is generating a clock signal. All tests pass with no errors.
 
-![Figure 5: A screenshot of a QuestaSim simulation for the led controller](images/lab1_controller.png)
+![Figure 5: A screenshot of a QuestaSim simulation for the led controller.](images/lab1_controller.png)
 
 Figure 5 shows a screenshot of the Questa simulation of the led controller module. All tests pass with no errors
 
-![Figure 6: A screenshot of a QuestaSim simulation for the counter](images/lab1_counter.png)
+![Figure 6: A screenshot of a QuestaSim simulation for the counter.](images/lab1_counter.png)
 
 Figure 6 shows a screenshot of the Questa simulation of the counter module. All tests pass with no errors.
 
@@ -92,14 +92,14 @@ The design met all intended design objectives.
 
 All prescribed tasks are accomplished. On hardware, all 16 switch positions were stepped through to confirm the displayed digit, and the LED truth tables and blink rate were verified. Both the LED and the 7-segment display changes instantly when the switch input is changed.
 
-![Figure 7: Picture of the LEDs and 7-segment display when output is 7](images/lab1_7.jpg)
+![Figure 7: Picture of the LEDs and 7-segment display when output is 7.](images/lab1_7.jpg)
 
 As shown in Figure 7, when the switch is 0111 (hexadecimal 7), the 7-segment display correctly displays 7. And since `s[0] ^ s[1]` is 0, `s[2] & s[3]` is 0, neither of led[0] and led[1] are on. Led[2] is on since it is always blinking.
 
 <details>
 <summary>Another test case</summary>
 
-![Figure 8: Picture of the LEDs and 7-segment display when output is d](images/lab1_d.jpg)
+![Figure 8: Picture of the LEDs and 7-segment display when output is d.](images/lab1_d.jpg)
 
 As shown in Figure 8, when the switch is 1101 (hexadecimal D), the 7-segment display correctly displays d (lower-case to differentiate against 0). And since `s[0] ^ s[1]` is 1, `s[2] & s[3]` is 1, both led[0] and led[1] are on. Led[2] is also on since it is always blinking.
 
