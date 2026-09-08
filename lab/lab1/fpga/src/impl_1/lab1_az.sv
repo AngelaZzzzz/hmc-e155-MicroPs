@@ -3,7 +3,7 @@
 // Date: 	9/7/2026
 //
 // Purpose: This is the top level module of E155 lab 1. This module instantiates the
-//				internal oscillator, blinker, and switch-to-7-segment decoder, and drives
+//				internal oscillator, led controller, and switch-to-7-segment decoder, and drives
 // 			three leds that represent the binary encoding of a hex number inputted by
 //				a switch.
  
