@@ -15,3 +15,6 @@
 ├── README.md
 ├── .gitignore
 ```
+
+### Overview
+This repository serves as the monorepo for Angela Zheng's MicroPs lab code and portfolios.
