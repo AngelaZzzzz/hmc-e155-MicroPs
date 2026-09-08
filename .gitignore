@@ -1,19 +1,65 @@
-# Lattice Radiant files
-*.html
-impl*/
-*.xml
+# Lattice Radiant
+**/radiant_project/
+**/incr/
+**/.vdbs/
+*.dir/
+*_par.dir/
+
+*.udb
+*.vm
+*.bin
+*.bgn
+*.bit
+*.rbt
+*.mcs
+*.arearep
+*.cprj
+*.drc
+*.hrr
+*.lsedata
+*.mrp
+*.p2t
+*.pad
+*.par
+*.psn
+*.pwrprd
+*.srp
+*.synproj
+*.t2b
+*.twr
+*.vdb
+*_impl_*.ldc
+CPEReport*.txt
+ipsdclist.txt
+
 .build_status
+.synthesis_touch
 .run_manager.ini
 .recovery
 .spread_sheet.ini
 .spreadsheet_view.ini
-*.dir/
+*.html*.xml
 *.log
 *.tcl
 *.ccl
-*.srp
 *.dmp
 ._Real_._Math_.vhd
+
+# Questa / ModelSim simulation
+**/qrun.out/
+**/work/
+transcript
+*.wlf
+*.vstf
+vsim.dbg
+vsim_stacktrace.vstf
+simulation.f
+simulation.sort
+simulation.spf
+simulation.tops
+simulation.vdo
+source_files.lst
+covhtmlreport/
 
 # Segger Embedded Studio
 **/Output/
@@ -21,6 +67,13 @@ impl*/
 *.emSession
 *.jlink
 
-## quarto
+# Quarto
 /.quarto/
 /_site/
+
+# OS / editor junk
+Thumbs.db
+desktop.ini
+.DS_Store
+*.swp
+*~
