@@ -85,9 +85,9 @@ ul.task-list li input[type="checkbox"] {
     }
 
     const options = {
-      valueNames: ['listing-author','listing-image','listing-description',{ data: ['index'] },{ data: ['categories'] },{ data: ['listing-date-sort'] },{ data: ['listing-file-modified-sort'] }],
+      valueNames: ['listing-date','listing-title','listing-author','listing-image','listing-description',{ data: ['index'] },{ data: ['categories'] },{ data: ['listing-date-sort'] },{ data: ['listing-file-modified-sort'] }],
       
-      searchColumns: ["listing-author","listing-image","listing-description"],
+      searchColumns: ["listing-date","listing-title","listing-author","listing-image","listing-description"],
     };
 
     window['quarto-listings'] = window['quarto-listings'] || {};
@@ -209,19 +209,28 @@ window.Quarto = {
 
 <div class="quarto-listing quarto-listing-container-default" id="listing-listing">
 <div class="list quarto-listing-default">
-<div class="quarto-post image-right" data-index="0" data-listing-file-modified-sort="1788866795763">
+<div class="quarto-post image-right" data-index="0" data-categories="bGFi" data-listing-date-sort="1788850800000" data-listing-file-modified-sort="1788896359268" data-listing-date-modified-sort="NaN" data-listing-reading-time-sort="11" data-listing-word-count-sort="2056">
 <div class="thumbnail"><a href="./labs/lab1/lab1.html" class="no-external">
 
-<div class="listing-item-img-placeholder card-img-top" >&nbsp;</div>
+<p class="card-img-top"><img loading='lazy' src="labs\lab1\images\lab1_block_diagram.jpg"  class="thumbnail-image card-img"/></p>
 
 </a></div>
 <div class="body">
+<h3 class="no-anchor listing-title">
+<a href="./labs/lab1/lab1.html" class="no-external">Lab 1: FPGA and MCU Setup and Testing</a>
+</h3>
 <div class="delink listing-description"><a href="./labs/lab1/lab1.html" class="no-external">
-
+<p>Assembling the MicroPs development board and driving three LEDs and a seven-segment display from the UPduino v3.1 FPGA</p>
 </a></div>
 </div>
 <div class="metadata">
 <a href="./labs/lab1/lab1.html" class="no-external">
+<div class="listing-date">
+Sep 8, 2026
+</div>
+<div class="listing-author">
+Angela Zheng
+</div>
 </a>
 </div>
 </div>
@@ -301,7 +310,7 @@ window.Quarto = {
     }
       var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
       var mailtoRegex = new RegExp(/^mailto:/);
-        var filterRegex = new RegExp('/' + window.location.host + '/');
+        var filterRegex = new RegExp("https:\/\/AngelaZzzzz\.github\.io\/hmc-e155-MicroPs\/");
       var isInternal = (href) => {
           return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
       }
