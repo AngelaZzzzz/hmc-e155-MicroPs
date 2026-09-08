@@ -11,8 +11,7 @@ draft: false
 ## Introduction
 
 The goal of this lab was to assemble the E155 development board, confirm that both the
-FPGA and MCU boards work, and write SystemVerilog to drive three LEDs and a seven-segment
-display. The design reads four DIP switches `s[3:0]` and produces:
+FPGA and MCU boards work, and write SystemVerilog code to drive three LEDs and a seven-segment display. The design reads four DIP switches `s[3:0]` and produces:
 
 - `led[0]`: the XOR of `s[1]` and `s[0]`
 - `led[1]`: the AND of `s[3]` and `s[2]`
@@ -24,11 +23,15 @@ display. The design reads four DIP switches `s[3:0]` and produces:
 The design is split into four modules so some of the modules are reusable in later labs:
 
 - `lab1_az.sv`: top level module that instantiates the internal oscillator, led controller, and a switch-to-7-segment decoder, and drives three leds that represent the binary encoding of a hex number inputted by a switch.
-- `led_controller.sv`: instantiates the counter, outputs a 2.4 Hz blink signal from a 48 MHz clock.
+- `led_controller.sv`: instantiates the counter, outputs a **2.4 Hz** blink signal from a 48 MHz clock.
 - `counter.sv`: a reusable counter that accepts parameters WIDTH and MAX_COUNT, and counts from 0 to MAX_COUNT-1 when enabled and wraps back to 0 when MAX_COUNT is reached.
 - `seven_segment_decoder.sv`: a reusable, combinational decoder that maps the switch input to its respective 7-segment display format.
 
-To toggle at 2.4 Hz the counter must roll over every half period, i.e. every 48 MHz ÷ (2 × 2.4 Hz) = 10,000,000 cycles, which needs a 24-bit counter:
+:::{.callout-note collapse="true"}
+## How did we get 2.4 Hz?
+
+For the counter, we have set MAX_COUNT = $10,000,000$. This determines what the counter counts up to and therefore the output frequency, which in our case will also be the frequency at which `led[2]` blinks at. Because the on-chip oscillator oscillates at $48$ MHz, and since we toggles `led[2]` half way through each count cycle, the blink frequency will be $48$ MHz $÷$ $10,000,000$ cycles $÷$ $2 = 2.4$ Hz.
+:::
 
 Each submodule has its own stim/assert testbench:
 
@@ -49,27 +52,56 @@ The block diagram in Figure 1 demonstrates the overall architecture of the desig
 ### Schematic
 ![Figure 2: Schematic of the UPduino to the seven-segment display physical circuit.](images/lab1_schematic.jpg){width=60% fig-align="center"}
 
+Figure 2 shows the physical layout of the design. Internal 100 k $\Omega$ pullup resistors were used to ensure the active low reset pin and the switches were not floating. This value was given by the lab instruction. Each of the 7 output segments were connected using a **150 $\Omega$** current-limiting resistor to ensure the output current did not exceed the safety range of ~8 mA.
+
+:::{.callout-note collapse="true"}
+## How did we get 150 $\Omega$?
+
+From the 7-segment display datasheet, we obtained that the forward voltage per segment is typically $2$ V. We know that the common anode is connected to $3.3$ V, making the voltage drop across the resistor-LED segment combo $3.3 - 2 = 1.3$ V. Using Ohm's law and plugging in $I = 8$ mA, we obtain an optimal resistor value of $1.3$ V $÷$ $8$ mA $= 162.5$ $\Omega$. Since we don't have that resistor value in lab, we will use $150$ $\Omega$ instead. Double checking, $150$ $\Omega$ with a $1.3$ V voltage drop gives a current of $8.67$ mA, which is still safe.
+:::
+
+
 ## Results and Discussion
 
 DID YOU ACCOMPLISH ALL OF THE PRESRIBED TASKS? AS APPROPRIATE, HOW DID THE DESIGN PERFORM (HOW FAST/ACCURATE/RELIABLE WAS IT?)
 
-All prescribed tasks are accomplished. On hardware, all 16 switch positions were stepped through to confirm the displayed digit, and the LED truth tables and blink rate were verified.
-
 ### Testbench Simulation
-![Figure 3: A screenshot of a QuestaSim simulation for the top level design](images/lab1_top.png)
 
-![Figure 4: A screenshot of a QuestaSim simulation for the led controller](images/lab1_controller.png)
+![Figure 3: A screenshot of a QuestaSim simulation for the 7 segment display](images/lab1_7_segment.png)
 
-![Figure 5: A screenshot of a QuestaSim simulation for the counter](images/lab1_counter.png)
+Figure 3 shows a screenshot of the Questa simulation of the 7 segement decoder module. We tested across all 16 possible input combinations, as demonstrated in the second signal in the screenshot (`s`), with their respective output captured by the third signal in the screenshot (`seg`). All tests pass with no errors.
 
-![Figure 6: A screenshot of a QuestaSim simulation for the 7 segment display](images/lab1_7_segment.png)
+<details>
+<summary>Other testbenches</summary>
+
+![Figure 4: A screenshot of a QuestaSim simulation for the top level design](images/lab1_top.png)
+
+Figure 4 shows a screenshot of the Questa simulation of the lab1_az top level module. All tests pass with no errors.
+
+![Figure 5: A screenshot of a QuestaSim simulation for the led controller](images/lab1_controller.png)
+
+Figure 5 shows a screenshot of the Questa simulation of the led controller module. All tests pass with no errors
+
+![Figure 6: A screenshot of a QuestaSim simulation for the counter](images/lab1_counter.png)
+
+Figure 6 shows a screenshot of the Questa simulation of the counter module. All tests pass with no errors.
+
+</details>
 
 The design met all intended design objectives. 
+
+### Hardware
+
+All prescribed tasks are accomplished. On hardware, all 16 switch positions were stepped through to confirm the displayed digit, and the LED truth tables and blink rate were verified.
+
+![Figure 7: ](images/lab1_7.jpg)
+
+![Figure 8](images/lab1_d.jpg)
 
 ## Conclusion
 
 BRIEFLY SUMMARIZE WHAT WAS DONE AND HOW IT PERFORMED. ALSO NOTE HOW MANY HOURS YOU SPENT WORKING ON THE LAB
 
-I spent a total of 18 hours working on this lab.
+I spent a total of 20 hours working on this lab.
 
 ## AI Prototype Summary
