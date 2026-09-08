@@ -24,7 +24,7 @@
 ├── README.md
 ├── .gitignore
 ```
-`/lab` contains all code and files for each lab
+`/lab` contains all code and files for each lab\
 `/portfolio/labs` contains the lab report webpage for each lab
 
 ### Overview
