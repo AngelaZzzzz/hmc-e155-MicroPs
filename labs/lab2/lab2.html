@@ -1,0 +1,1046 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.10.18">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+<meta name="author" content="Angela Zheng">
+<meta name="dcterms.date" content="2026-09-14">
+<meta name="description" content="Driving a dual seven-segment display as well as a keypad scanning circuit from the UPduino v3.1 FPGA">
+
+<title>Lab 2: Multiplexed 7-Segment Display and Keypad Scanning – E155 Portfolio</title>
+<style>
+/* Default styles provided by pandoc.
+** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+*/
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: 1.5em;}
+div.column{flex: auto;}
+@media screen {
+div.columns{gap: min(4vw, 1.5em);}
+div.column{overflow-x: auto;}
+}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+</style>
+
+
+<script src="../../site_libs/quarto-nav/quarto-nav.js"></script>
+<script src="../../site_libs/quarto-nav/headroom.min.js"></script>
+<script src="../../site_libs/clipboard/clipboard.min.js"></script>
+<script src="../../site_libs/quarto-search/autocomplete.umd.js"></script>
+<script src="../../site_libs/quarto-search/fuse.min.js"></script>
+<script src="../../site_libs/quarto-search/quarto-search.js"></script>
+<meta name="quarto:offset" content="../../">
+<script src="../../site_libs/quarto-html/quarto.js" type="module"></script>
+<script src="../../site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="../../site_libs/quarto-html/popper.min.js"></script>
+<script src="../../site_libs/quarto-html/tippy.umd.min.js"></script>
+<script src="../../site_libs/quarto-html/anchor.min.js"></script>
+<link href="../../site_libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="../../site_libs/quarto-html/quarto-syntax-highlighting-64a204ab8560d761af7679ceaba22944.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="../../site_libs/bootstrap/bootstrap.min.js"></script>
+<link href="../../site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="../../site_libs/bootstrap/bootstrap-172ba59bd5e0b52282274ba0c0cc16fc.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<script id="quarto-search-options" type="application/json">{
+  "location": "navbar",
+  "copy-button": false,
+  "collapse-after": 3,
+  "panel-placement": "end",
+  "type": "overlay",
+  "limit": 50,
+  "keyboard-shortcut": [
+    "f",
+    "/",
+    "s"
+  ],
+  "show-item-context": false,
+  "language": {
+    "search-no-results-text": "No results",
+    "search-matching-documents-text": "matching documents",
+    "search-copy-link-title": "Copy link to search",
+    "search-hide-matches-text": "Hide additional matches",
+    "search-more-match-text": "more match in this document",
+    "search-more-matches-text": "more matches in this document",
+    "search-clear-button-title": "Clear",
+    "search-text-placeholder": "",
+    "search-detached-cancel-button-title": "Cancel",
+    "search-submit-button-title": "Submit",
+    "search-label": "Search"
+  }
+}</script>
+
+  <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
+  <script defer="" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-chtml.js" type="text/javascript"></script>
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN" && texText && texText.data) {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
+
+<link rel="stylesheet" href="../../styles.css">
+</head>
+
+<body class="nav-fixed quarto-light">
+
+<div id="quarto-search-results"></div>
+  <header id="quarto-header" class="headroom fixed-top">
+    <nav class="navbar navbar-expand-lg " data-bs-theme="dark">
+      <div class="navbar-container container-fluid">
+      <div class="navbar-brand-container mx-auto">
+    <a class="navbar-brand" href="../../index.html">
+    <span class="navbar-title">E155 Portfolio</span>
+    </a>
+  </div>
+            <div id="quarto-search" class="" title="Search"></div>
+          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse" aria-controls="navbarCollapse" role="menu" aria-expanded="false" aria-label="Toggle navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+  <span class="navbar-toggler-icon"></span>
+</button>
+          <div class="collapse navbar-collapse" id="navbarCollapse">
+            <ul class="navbar-nav navbar-nav-scroll me-auto">
+  <li class="nav-item">
+    <a class="nav-link" href="../../index.html"> 
+<span class="menu-text">Home</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="../../blog.html"> 
+<span class="menu-text">Blog</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="../../labs.html"> 
+<span class="menu-text">Labs</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="../../resources.html"> 
+<span class="menu-text">Resources</span></a>
+  </li>  
+</ul>
+          </div> <!-- /navcollapse -->
+            <div class="quarto-navbar-tools">
+</div>
+      </div> <!-- /container-fluid -->
+    </nav>
+</header>
+<!-- content -->
+<div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article page-navbar">
+<!-- sidebar -->
+<!-- margin-sidebar -->
+    <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+        <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">On this page</h2>
+   
+  <ul>
+  <li><a href="#introduction" id="toc-introduction" class="nav-link active" data-scroll-target="#introduction">Introduction</a></li>
+  <li><a href="#design-and-testing-methodology" id="toc-design-and-testing-methodology" class="nav-link" data-scroll-target="#design-and-testing-methodology">Design and Testing Methodology</a></li>
+  <li><a href="#technical-documentation" id="toc-technical-documentation" class="nav-link" data-scroll-target="#technical-documentation">Technical Documentation</a>
+  <ul class="collapse">
+  <li><a href="#block-diagram" id="toc-block-diagram" class="nav-link" data-scroll-target="#block-diagram">Block Diagram</a></li>
+  <li><a href="#schematic" id="toc-schematic" class="nav-link" data-scroll-target="#schematic">Schematic</a></li>
+  <li><a href="#calculations" id="toc-calculations" class="nav-link" data-scroll-target="#calculations">Calculations</a></li>
+  </ul></li>
+  <li><a href="#results-and-discussion" id="toc-results-and-discussion" class="nav-link" data-scroll-target="#results-and-discussion">Results and Discussion</a>
+  <ul class="collapse">
+  <li><a href="#testbench-simulation" id="toc-testbench-simulation" class="nav-link" data-scroll-target="#testbench-simulation">Testbench Simulation</a></li>
+  <li><a href="#hardware" id="toc-hardware" class="nav-link" data-scroll-target="#hardware">Hardware</a></li>
+  </ul></li>
+  <li><a href="#conclusion" id="toc-conclusion" class="nav-link" data-scroll-target="#conclusion">Conclusion</a></li>
+  <li><a href="#ai-prototype-summary" id="toc-ai-prototype-summary" class="nav-link" data-scroll-target="#ai-prototype-summary">AI Prototype Summary</a>
+  <ul class="collapse">
+  <li><a href="#ai-chat-transcript" id="toc-ai-chat-transcript" class="nav-link" data-scroll-target="#ai-chat-transcript">AI Chat Transcript</a></li>
+  <li><a href="#summary" id="toc-summary" class="nav-link" data-scroll-target="#summary">Summary</a></li>
+  </ul></li>
+  </ul>
+</nav>
+    </div>
+<!-- main -->
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">Lab 2: Multiplexed 7-Segment Display and Keypad Scanning</h1>
+  <div class="quarto-categories">
+    <div class="quarto-category">lab</div>
+  </div>
+  </div>
+
+<div>
+  <div class="description">
+    Driving a dual seven-segment display as well as a keypad scanning circuit from the UPduino v3.1 FPGA
+  </div>
+</div>
+
+
+<div class="quarto-title-meta">
+
+    <div>
+    <div class="quarto-title-meta-heading">Author</div>
+    <div class="quarto-title-meta-contents">
+             <p>Angela Zheng </p>
+          </div>
+  </div>
+    
+    <div>
+    <div class="quarto-title-meta-heading">Published</div>
+    <div class="quarto-title-meta-contents">
+      <p class="date">September 14, 2026</p>
+    </div>
+  </div>
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<section id="introduction" class="level2">
+<h2 class="anchored" data-anchor-id="introduction">Introduction</h2>
+<p>The goal of this lab was to use time multiplexing to share one expensive hardware resource across two jobs, and to interrogate a matrix keypad by scanning it one row at a time. The design reads two independent 4-bit switch inputs <code>s0[3:0]</code> and <code>s1[3:0]</code>, reads the four keypad columns <code>col[3:0]</code>, and produces:</p>
+<ul>
+<li><code>seg[6:0]</code>: a single shared cathode bus, driven by <strong>one</strong> seven-segment decoder that alternates between the two digits</li>
+<li><code>pnp[1:0]</code>: one-hot anode enables that turn on exactly one display at a time through 2N3906 PNP transistors</li>
+<li><code>row[3:0]</code>: a rotating one-hot scan pattern driven onto the keypad rows through 2N3904 NPN transistors wired as open-collector outputs</li>
+<li><code>led[3:0]</code>: the inverted keypad columns, so that pressing a key blinks the LED for that column</li>
+</ul>
+<p>Because a single decoder and a single set of segment pins serve both digits, the display costs 9 FPGA pins instead of the 14 that two independent decoders would need.</p>
+</section>
+<section id="design-and-testing-methodology" class="level2">
+<h2 class="anchored" data-anchor-id="design-and-testing-methodology">Design and Testing Methodology</h2>
+<p>The design is split into five modules, two of which are reused unchanged from lab 1:</p>
+<ul>
+<li><code>lab2_az.sv</code>: top level module. It instantiates the internal oscillator (<code>HSOSC</code>), the time multiplexer (<code>time_mux</code>), the shared decoder (<code>seven_segment_decoder</code>), and the keypad row scanner (<code>keypad_scanner</code>), and contains a single assign statement that passes the keypad columns back out to the LEDs.</li>
+<li><code>time_mux.sv</code>: a 2:1 multiplexer in front of the shared decoder. A counter divides the 48 MHz clock; the first half of each count period selects <code>s1</code> and the second half selects <code>s0</code>, and the matching anode enable in <code>pnp[1:0]</code> is asserted so that only the digit whose data is currently on the segment bus is lit.</li>
+<li><code>keypad_scanner.sv</code>: the row scanner. A counter provides the state, and four assign statements convert the count into the rotating one-hot pattern <code>1000</code> → <code>0100</code> → <code>0010</code> → <code>0001</code>. The module is both resettable and enable-able, and it contains nothing other than the counter instance and the output assigns.</li>
+<li><code>counter.sv</code>: Counter from lab 1.</li>
+<li><code>seven_segment_decoder.sv</code>: Seven segement decoder from lab 1.</li>
+</ul>
+<p>Per the simulation specifications, <code>counter</code> and <code>seven_segment_decoder</code> were not re-simulated, since both were verified with their own testbenches in lab 1 and neither was modified. The two new pieces of the design each have their own self-checking stim/assert testbench:</p>
+<ul>
+<li><code>keypad_scanner_tb.sv</code> walks the scanner through all four output transitions (including the wrap from <code>0001</code> back to <code>1000</code>), checks that the output holds steady for a full row period rather than changing early, and checks the enable and reset features: the scanner freezes while <code>enable</code> is low, picks up where it left off when <code>enable</code> returns, and jumps back to <code>1000</code> when reset is asserted mid-scan.</li>
+<li><code>lab2_az_tb.sv</code> exercises the top module. It models the keypad inside the testbench by driving <code>col</code> from the current <code>row</code> pattern and a set of simulated key presses, so the design under test sees the same behavior it would on the bench. It checks that reset selects a known digit, that each digit is held for exactly half the refresh period and then swaps, that the two digits follow their own switch inputs independently, and that the LED path lights the correct LED for the row currently being scanned. The multiple-keypress case is tested explicitly: three keys are held at once, two of them sharing a column, and each lights its LED only while its own row is being driven.</li>
+</ul>
+</section>
+<section id="technical-documentation" class="level2">
+<h2 class="anchored" data-anchor-id="technical-documentation">Technical Documentation</h2>
+<p>The source code for the project can be found in the associated <a href="https://github.com/AngelaZzzzz/hmc-e155-MicroPs/tree/main/labs/lab2/src/impl_1">Github repository</a>.</p>
+<section id="block-diagram" class="level3">
+<h3 class="anchored" data-anchor-id="block-diagram">Block Diagram</h3>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="images/lab2_block_diagram.jpg" class="img-fluid figure-img"></p>
+<figcaption>Figure 1: Block diagram of the SystemVerilog design. Angela Zheng, 9/14/2026</figcaption>
+</figure>
+</div>
+<p>The block diagram in Figure 1 shows the overall architecture of the design. The top-level module <code>lab2_az</code> contains four submodules: the high-speed oscillator block (<code>HSOSC</code>), the time multiplexer (<code>time_mux</code>), the shared seven-segment decoder (<code>seven_segment_decoder</code>), and the keypad row scanner (<code>keypad_scanner</code>). Both <code>time_mux</code> and <code>keypad_scanner</code> contain their own parametrized instance of the <code>counter</code> module. The single 4-bit net <code>s_eff</code> (s effective) carries the multiplexer output into the one decoder instance, which is what makes the decoder shared rather than duplicated, and the inverter on the <code>col</code> path is the only bare logic in the top module.</p>
+</section>
+<section id="schematic" class="level3">
+<h3 class="anchored" data-anchor-id="schematic">Schematic</h3>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="images/seven_segment_schematic.jpg" class="img-fluid figure-img" style="width:70.0%"></p>
+<figcaption>Figure 2: Schematic of the UPduino and the dual seven-segment display, and the keypad. Angela Zheng, 9/14/2026</figcaption>
+</figure>
+</div>
+<p>Figure 2 shows the physical layout of the dual seven-segment display design. Internal 100 k <span class="math inline">\(\Omega\)</span> pullup resistors were used to ensure the active low reset pin and the switches were not floating. Each pair of the 7 output segments were connected using a <strong>100 <span class="math inline">\(\Omega\)</span></strong> current-limiting resistor to ensure the FPGA output current did not exceed the safety range of ~8 mA.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="images/keypad_schematic.jpg" class="img-fluid figure-img" style="width:70.0%"></p>
+<figcaption>Figure 3: Schematic of the UPduino and the keypad. Angela Zheng, 9/14/2026</figcaption>
+</figure>
+</div>
+<p>Figure 3 shows the physical layout of the keypad design. Internal 100 k <span class="math inline">\(\Omega\)</span> pullup resistors were used to ensure the active low reset pin and the column pins were not floating. Each column is pulled up using a <strong>390 <span class="math inline">\(\Omega\)</span></strong> pull-up resistor, and each row are connected using a <strong>330 <span class="math inline">\(\Omega\)</span></strong> current-limiting resistor to ensure the FPGA output current did not exceed the safety range of ~8 mA.</p>
+</section>
+<section id="calculations" class="level3">
+<h3 class="anchored" data-anchor-id="calculations">Calculations</h3>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="images/calculations.jpg" class="img-fluid figure-img" style="width:90.0%"></p>
+<figcaption>Figure 4: Resistor Calculations</figcaption>
+</figure>
+</div>
+</section>
+</section>
+<section id="results-and-discussion" class="level2">
+<h2 class="anchored" data-anchor-id="results-and-discussion">Results and Discussion</h2>
+<section id="testbench-simulation" class="level3">
+<h3 class="anchored" data-anchor-id="testbench-simulation">Testbench Simulation</h3>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="images/scanner_testbench.png" class="img-fluid figure-img"></p>
+<figcaption>Figure 5: A screenshot of a QuestaSim simulation for the keypad row scanner</figcaption>
+</figure>
+</div>
+<p>Figure 3 shows the Questa simulation of <code>keypad_scanner</code>. The <code>row</code> signal steps through <code>1000</code>, <code>0100</code>, <code>0010</code>, and <code>0001</code> and then wraps, holding each pattern for a full row period. The later part of the waveform shows the output frozen while <code>enable</code> is low and the jump back to <code>1000</code> when <code>reset</code> is asserted mid-scan. All tests pass with no errors.</p>
+<details>
+<summary>
+Top module testbench
+</summary>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="images/top_level_testbench.png" class="img-fluid figure-img"></p>
+<figcaption>Figure 6: A screenshot of a QuestaSim simulation for the top level design</figcaption>
+</figure>
+</div>
+<p>Figure 4 shows the Questa simulation of the <code>lab2_az</code> top level module. The <code>pnp</code> signal alternates between <code>01</code> and <code>10</code> while <code>seg</code> swaps between the two decoded digits in lockstep, confirming that the shared segment bus only ever presents the digit whose anode is enabled. Lower in the waveform, <code>led</code> follows <code>~col</code> as the scan walks across the rows with three keys held down. All tests pass with no errors.</p>
+</details>
+</section>
+<section id="hardware" class="level3">
+<h3 class="anchored" data-anchor-id="hardware">Hardware</h3>
+<p>The design met all of the intended design objectives. On hardware, both digits were stepped through all 16 values independently to confirm that each display follows its own DIP switch, and the keypad was checked key by key to confirm that each press blinks the LED for its column. The brightness of a digit does not change with the number of segments lit, there is no visible bleeding between the two digits, and neither digit flickers. Because the row drivers are open-collector, pressing two keys in the same column does not short two row drivers together, and the scanning signal keeps working correctly with at least two keys held at once.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="images/seven_segment_demo.jpg" class="img-fluid figure-img"></p>
+<figcaption>Figure 7: Picture of the dual seven-segment display showing two independent hexadecimal digits</figcaption>
+</figure>
+</div>
+<p>As shown in Figure 7, switch 1 inputted a hex pattern of <code>3</code>, switch 2 inputted a hex pattern of <code>C</code>, and the dual seven-segment display correctly displays both.</p>
+<details>
+<summary>
+Keypad scanning on hardware
+</summary>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><img src="images/keypad_demo.jpg" class="img-fluid figure-img"></p>
+<figcaption>Figure 8: Picture of the LEDs responding to a keypress on the keypad</figcaption>
+</figure>
+</div>
+<p>As shown in Figure 8, row 3 column 3 is depressed, and LED 3 correctly lights up.</p>
+</details>
+</section>
+</section>
+<section id="conclusion" class="level2">
+<h2 class="anchored" data-anchor-id="conclusion">Conclusion</h2>
+<p>The design successfully drove two independent hexadecimal digits on a dual common-anode display from a single time-multiplexed seven-segment decoder, and successfully scanned a matrix keypad so that any keypress blinks the LED for its column. The most interesting part of the lab was that both of the hard problems were solved outside the HDL: the anode current and the multiple-keypress short each needed a transistor.</p>
+<p>I spent a total of 20 hours working on this lab.</p>
+</section>
+<section id="ai-prototype-summary" class="level2">
+<h2 class="anchored" data-anchor-id="ai-prototype-summary">AI Prototype Summary</h2>
+<p>Model used: <strong>Claude Fable 5.1</strong></p>
+<section id="ai-chat-transcript" class="level3">
+<h3 class="anchored" data-anchor-id="ai-chat-transcript">AI Chat Transcript</h3>
+<details>
+<summary>
+User Prompt
+</summary>
+<p>Write SystemVerilog HDL to time multiplex a single seven segment decoder (that decodes from four bits to a common anode seven segment display) to decode two sets of input bits and drive two sets of seven output bits.</p>
+</details>
+<details>
+<summary>
+AI Response
+</summary>
+<p>The file contains two modules: hex_to_7seg (the single combinational decoder, active-low for common anode) and tdm_seven_seg, which toggles a sel bit each clock, muxes din0/din1 into the one decoder, and latches the result into seg0 or seg1. Each output holds its value and refreshes every other cycle, so the displays never flicker even though only one decoder exists.</p>
+<p>If you want a real chip-level multiplexed display (one shared segment bus plus per-digit anode enables) instead of two independent 7-bit outputs, that’s a small variation — let me know.</p>
+<pre><code>// ---------------------------------------------------------------------------
+// hex_to_7seg
+//   Combinational 4-bit -&gt; 7-segment decoder for a COMMON-ANODE display.
+//   Segments are active-LOW (0 = lit).  Bit order: seg[6:0] = {g,f,e,d,c,b,a}
+// ---------------------------------------------------------------------------
+module hex_to_7seg (
+    input  logic [3:0] bin,
+    output logic [6:0] seg      // {g,f,e,d,c,b,a}, active low
+);
+    always_comb begin
+        unique case (bin)      //        gfedcba
+            4'h0: seg = 7'b1000000;
+            4'h1: seg = 7'b1111001;
+            4'h2: seg = 7'b0100100;
+            4'h3: seg = 7'b0110000;
+            4'h4: seg = 7'b0011001;
+            4'h5: seg = 7'b0010010;
+            4'h6: seg = 7'b0000010;
+            4'h7: seg = 7'b1111000;
+            4'h8: seg = 7'b0000000;
+            4'h9: seg = 7'b0010000;
+            4'hA: seg = 7'b0001000;
+            4'hB: seg = 7'b0000011;
+            4'hC: seg = 7'b1000110;
+            4'hD: seg = 7'b0100001;
+            4'hE: seg = 7'b0000110;
+            4'hF: seg = 7'b0001110;
+            default: seg = 7'b1111111;   // all off
+        endcase
+    end
+endmodule
+
+
+// ---------------------------------------------------------------------------
+// tdm_seven_seg
+//   Time-multiplexes ONE hex_to_7seg instance between two 4-bit inputs.
+//   Each clock the mux alternates inputs; the decoder result is latched
+//   into the matching output register, so both 7-bit outputs are held
+//   continuously and each refreshes every other clock.
+// ---------------------------------------------------------------------------
+module tdm_seven_seg (
+    input  logic       clk,
+    input  logic       rst_n,      // async active-low reset
+    input  logic [3:0] din0,
+    input  logic [3:0] din1,
+    output logic [6:0] seg0,       // decoded din0, active low
+    output logic [6:0] seg1        // decoded din1, active low
+);
+    logic       sel;               // 0 -&gt; din0 this cycle, 1 -&gt; din1
+    logic [3:0] bin_mux;
+    logic [6:0] seg_dec;
+
+    // Input mux feeding the single decoder
+    assign bin_mux = sel ? din1 : din0;
+
+    hex_to_7seg u_dec (
+        .bin (bin_mux),
+        .seg (seg_dec)
+    );
+
+    // Output demux: capture decoder result into the selected output register
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            sel  &lt;= 1'b0;
+            seg0 &lt;= 7'b1111111;    // blank on reset
+            seg1 &lt;= 7'b1111111;
+        end else begin
+            if (sel) seg1 &lt;= seg_dec;
+            else     seg0 &lt;= seg_dec;
+            sel &lt;= ~sel;
+        end
+    end
+endmodule</code></pre>
+</details>
+<p>New chat with lab 1 files attached:</p>
+<details>
+<summary>
+User Prompt
+</summary>
+<p>Write SystemVerilog HDL to time multiplex a single seven segment decoder (that decodes from four bits to a common anode seven segment display) to decode two sets of input bits and drive two sets of seven output bits. Use the seven segment decoder and oscillator provided in the attached files.</p>
+</details>
+<details>
+<summary>
+AI Response
+</summary>
+<p>How it works:</p>
+<p>seven_segment_mux.sv — the multiplexer. Your counter module divides the clock; each time it wraps, a 1-bit digit register toggles. That bit selects which nibble (s0 or s1) feeds the single seven_segment_decoder instance, and on the output side routes the decoded pattern to seg0 or seg1 while blanking the other with 7’b1111111 (off for common anode). It also outputs active-low anode enables an0/an1, which you’ll want if the two displays physically share segment lines and are switched through transistors — ignore them if your displays are fully separate. lab_mux_top.sv — instantiates HSOSC exactly as in lab1_az.sv and the mux with MAX_COUNT = 240_000, so at 48 MHz each display refreshes at 100 Hz (well above the ~60 Hz flicker threshold). reset keeps your active-low pushbutton convention. seven_segment_mux_tb.sv — same assert/$display style as your other testbenches, with a small MAX_COUNT so it runs fast. It checks the initial phase after reset, that outputs follow input changes immediately, and sweeps all 16 values through both displays.</p>
+<p>You’ll need to add s1[3:0], seg1[6:0], and the anode pins to pin_assignment.pdc for whatever sites you wire them to. Compile it alongside the unchanged counter.sv and seven_segment_decoder.sv.</p>
+<pre><code>// Purpose: Time multiplexes ONE seven_segment_decoder between two 4-bit inputs
+//          (s0, s1) and drives two separate 7-bit common-anode segment outputs
+//          (seg0, seg1).
+//
+//          A free-running counter (the provided counter module) toggles a
+//          1-bit "digit" select every MAX_COUNT clock cycles. The select
+//          chooses which input nibble is fed to the single decoder; the
+//          decoder output is routed to the active display while the other
+//          display is blanked (all 1's = off for common anode). The switching
+//          is fast enough that both digits appear continuously lit.
+//
+//          an0 / an1 are active-LOW common-anode enables, provided in case
+//          the two displays physically share segment wires and need their
+//          anodes switched externally (e.g. via PNP transistors).
+//
+//          With a 48 MHz clock and MAX_COUNT = 240_000, each digit is
+//          refreshed at 100 Hz (200 Hz toggle rate) -&gt; no visible flicker.
+
+module seven_segment_mux #(
+    parameter WIDTH     = 18,
+    parameter MAX_COUNT = 240_000
+)(
+    input   logic       clk,
+    input   logic       reset,  // active high, asynchronous
+    input   logic [3:0] s0,     // value for display 0
+    input   logic [3:0] s1,     // value for display 1
+    output  logic [6:0] seg0,   // segments for display 0 (common anode)
+    output  logic [6:0] seg1,   // segments for display 1 (common anode)
+    output  logic       an0,    // active-low anode enable, display 0
+    output  logic       an1     // active-low anode enable, display 1
+);
+
+    localparam logic [6:0] BLANK = 7'b1111111;  // all segments off
+
+    logic [WIDTH-1:0]   count;
+    logic               digit;  // 0 -&gt; display 0 active, 1 -&gt; display 1 active
+    logic [3:0]         s_sel;
+    logic [6:0]         seg;
+
+    // Refresh-rate divider (provided counter module)
+    counter #(WIDTH, MAX_COUNT) refresh_counter(clk, reset, 1'b1, count);
+
+    // Toggle the active digit each time the counter wraps
+    always_ff @(posedge clk, posedge reset) begin
+        if (reset)                      digit &lt;= 1'b0;
+        else if (count == MAX_COUNT-1)  digit &lt;= ~digit;
+    end
+
+    // Input multiplexer: pick which nibble goes to the single decoder
+    assign s_sel = digit ? s1 : s0;
+
+    // The single shared decoder
+    seven_segment_decoder decoder(s_sel, seg);
+
+    // Output demultiplexer: route decoded pattern to the active display,
+    // blank the other one.
+    assign seg0 = digit ? BLANK : seg;
+    assign seg1 = digit ? seg   : BLANK;
+
+    // Active-low anode enables
+    assign an0 = digit;
+    assign an1 = ~digit;
+
+endmodule</code></pre>
+<pre><code>// Purpose: Top level for the dual seven-segment display driver. Instantiates the
+//          internal high-speed oscillator (48 MHz) and the time-multiplexed
+//          seven-segment driver, which shares one decoder between two 4-bit
+//          inputs and drives two 7-bit common-anode segment outputs.
+
+module lab_mux_top(
+    input   logic [3:0] s0,     // switch input for display 0
+    input   logic [3:0] s1,     // switch input for display 1
+    input   logic       reset,  // active-low pushbutton (same polarity as lab1_az)
+    output  logic [6:0] seg0,   // segments for display 0
+    output  logic [6:0] seg1,   // segments for display 1
+    output  logic       an0,    // active-low anode enable, display 0
+    output  logic       an1     // active-low anode enable, display 1
+);
+
+    logic clk;
+
+    // Internal high-speed oscillator, 48 MHz (CLKHF_DIV default = "0b00")
+    HSOSC hf_osc(.CLKHFPU(1'b1), .CLKHFEN(1'b1), .CLKHF(clk));
+
+    // 48 MHz / 240_000 = 200 Hz digit toggle -&gt; 100 Hz refresh per display
+    seven_segment_mux #(18, 240_000) display_mux(
+        .clk(clk),
+        .reset(~reset),
+        .s0(s0),
+        .s1(s1),
+        .seg0(seg0),
+        .seg1(seg1),
+        .an0(an0),
+        .an1(an1)
+    );
+
+endmodule</code></pre>
+<pre><code>`timescale 1 ns/1 ns
+
+// Testbench for seven_segment_mux. Uses a small MAX_COUNT so the digit select
+// toggles every 4 clock cycles and the whole sequence simulates quickly.
+
+module seven_segment_mux_tb();
+    logic       clk;
+    logic       reset;
+    logic [3:0] s0, s1;
+    logic [6:0] seg0, seg1;
+    logic       an0, an1;
+
+    localparam MAX_COUNT = 4;
+
+    seven_segment_mux #(3, MAX_COUNT) dut(clk, reset, s0, s1, seg0, seg1, an0, an1);
+
+    // Reference decoder so the expected pattern comes from the same lookup table
+    logic [3:0] ref_in;
+    logic [6:0] ref_seg;
+    seven_segment_decoder ref_dec(ref_in, ref_seg);
+
+    // generate a clock
+    always begin
+        clk = 0; #5;
+        clk = 1; #5;
+    end
+
+    // Check both outputs against the expected pattern for the active digit
+    task check(input logic exp_digit);
+        begin
+            ref_in = exp_digit ? s1 : s0;
+            #1;
+            if (exp_digit == 0) begin
+                assert (seg0 == ref_seg &amp;&amp; seg1 == 7'b1111111 &amp;&amp; an0 == 0 &amp;&amp; an1 == 1)
+                    $display("PASSED! Display 0 shows %h, display 1 blanked at time: %0t.", s0, $time);
+                else
+                    $error("FAILED! Display 0 active: seg0=%b seg1=%b an0=%b an1=%b at time: %0t.", seg0, seg1, an0, an1, $time);
+            end else begin
+                assert (seg1 == ref_seg &amp;&amp; seg0 == 7'b1111111 &amp;&amp; an1 == 0 &amp;&amp; an0 == 1)
+                    $display("PASSED! Display 1 shows %h, display 0 blanked at time: %0t.", s1, $time);
+                else
+                    $error("FAILED! Display 1 active: seg0=%b seg1=%b an0=%b an1=%b at time: %0t.", seg0, seg1, an0, an1, $time);
+            end
+        end
+    endtask
+
+    initial begin
+        reset = 1;
+        s0 = 4'h3;
+        s1 = 4'hA;
+        #22 reset = 0;
+
+        // After reset, display 0 is active for MAX_COUNT cycles, then display 1
+        @(negedge clk); check(0);
+        repeat (MAX_COUNT) @(negedge clk);
+        check(1);
+        repeat (MAX_COUNT) @(negedge clk);
+        check(0);
+
+        // Change inputs mid-frame: outputs must follow immediately
+        s0 = 4'h7;
+        s1 = 4'hE;
+        @(negedge clk); check(0);
+        repeat (MAX_COUNT) @(negedge clk);
+        check(1);
+
+        // Sweep all 16 values through both displays
+        for (int i = 0; i &lt; 16; i++) begin
+            s0 = i;
+            s1 = 15 - i;
+            repeat (MAX_COUNT) @(negedge clk);
+            check(0);
+            repeat (MAX_COUNT) @(negedge clk);
+            check(1);
+        end
+
+        #100 $stop;
+    end
+
+endmodule</code></pre>
+</details>
+</section>
+<section id="summary" class="level3">
+<h3 class="anchored" data-anchor-id="summary">Summary</h3>
+<p>The two attempts differed a lot in cost. Response 1 took around 20 seconds, while response 2, with my lab 1 files attached, took around 6 minutes.</p>
+<p>Response 1 compiles and the code makes sense, and it used one syntax I haven’t seen before: <code>unique case</code>. One difference is that it did not use the high speed oscillator because the instruction didn’t tell it to, adding a little bit of resistance integrating it into our existing workflow. This is a caveat I notice in a lot of AI assisted implementations, where the user didn’t include enough context resulting in an incomplete AI response.</p>
+<p>Response 2 was much closer to what the lab instruction demands and what my code style is. Attaching my lab 1 files got the model to reuse my <code>counter</code> and <code>seven_segment_decoder</code> as well as having a template to go off of. However, again, it did not include the <code>counter</code> module, so it still requires some human processing before we can use the response on its own.</p>
+
+
+</section>
+</section>
+
+</main> <!-- /main -->
+<script id="quarto-html-after-body" type="application/javascript">
+  window.document.addEventListener("DOMContentLoaded", function (event) {
+    const icon = "";
+    const anchorJS = new window.AnchorJS();
+    anchorJS.options = {
+      placement: 'right',
+      icon: icon
+    };
+    anchorJS.add('.anchored');
+    const isCodeAnnotation = (el) => {
+      for (const clz of el.classList) {
+        if (clz.startsWith('code-annotation-')) {                     
+          return true;
+        }
+      }
+      return false;
+    }
+    const onCopySuccess = function(e) {
+      // button target
+      const button = e.trigger;
+      // don't keep focus
+      button.blur();
+      // flash "checked"
+      button.classList.add('code-copy-button-checked');
+      var currentTitle = button.getAttribute("title");
+      button.setAttribute("title", "Copied!");
+      let tooltip;
+      if (window.bootstrap) {
+        button.setAttribute("data-bs-toggle", "tooltip");
+        button.setAttribute("data-bs-placement", "left");
+        button.setAttribute("data-bs-title", "Copied!");
+        tooltip = new bootstrap.Tooltip(button, 
+          { trigger: "manual", 
+            customClass: "code-copy-button-tooltip",
+            offset: [0, -8]});
+        tooltip.show();    
+      }
+      setTimeout(function() {
+        if (tooltip) {
+          tooltip.hide();
+          button.removeAttribute("data-bs-title");
+          button.removeAttribute("data-bs-toggle");
+          button.removeAttribute("data-bs-placement");
+        }
+        button.setAttribute("title", currentTitle);
+        button.classList.remove('code-copy-button-checked');
+      }, 1000);
+      // clear code selection
+      e.clearSelection();
+    }
+    const getTextToCopy = function(trigger) {
+      const outerScaffold = trigger.parentElement.cloneNode(true);
+      const codeEl = outerScaffold.querySelector('code');
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+    }
+    const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+      text: getTextToCopy
+    });
+    clipboard.on('success', onCopySuccess);
+    if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+      const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+        text: getTextToCopy,
+        container: window.document.getElementById('quarto-embedded-source-code-modal')
+      });
+      clipboardModal.on('success', onCopySuccess);
+    }
+      var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+      var mailtoRegex = new RegExp(/^mailto:/);
+        var filterRegex = new RegExp("https:\/\/AngelaZzzzz\.github\.io\/hmc-e155-MicroPs\/");
+      var isInternal = (href) => {
+          return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+      }
+      // Inspect non-navigation links and adorn them if external
+     var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+      for (var i=0; i<links.length; i++) {
+        const link = links[i];
+        if (!isInternal(link.href)) {
+          // undo the damage that might have been done by quarto-nav.js in the case of
+          // links that we want to consider external
+          if (link.dataset.originalHref !== undefined) {
+            link.href = link.dataset.originalHref;
+          }
+        }
+      }
+    function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+      const config = {
+        allowHTML: true,
+        maxWidth: 500,
+        delay: 100,
+        arrow: false,
+        appendTo: function(el) {
+            return el.parentElement;
+        },
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'quarto',
+        placement: 'bottom-start',
+      };
+      if (contentFn) {
+        config.content = contentFn;
+      }
+      if (onTriggerFn) {
+        config.onTrigger = onTriggerFn;
+      }
+      if (onUntriggerFn) {
+        config.onUntrigger = onUntriggerFn;
+      }
+      window.tippy(el, config); 
+    }
+    const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+    for (var i=0; i<noterefs.length; i++) {
+      const ref = noterefs[i];
+      tippyHover(ref, function() {
+        // use id or data attribute instead here
+        let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+        try { href = new URL(href).hash; } catch {}
+        const id = href.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note) {
+          return note.innerHTML;
+        } else {
+          return "";
+        }
+      });
+    }
+    const xrefs = window.document.querySelectorAll('a.quarto-xref');
+    const processXRef = (id, note) => {
+      // Strip column container classes
+      const stripColumnClz = (el) => {
+        el.classList.remove("page-full", "page-columns");
+        if (el.children) {
+          for (const child of el.children) {
+            stripColumnClz(child);
+          }
+        }
+      }
+      stripColumnClz(note)
+      if (id === null || id.startsWith('sec-')) {
+        // Special case sections, only their first couple elements
+        const container = document.createElement("div");
+        if (note.children && note.children.length > 2) {
+          container.appendChild(note.children[0].cloneNode(true));
+          for (let i = 1; i < note.children.length; i++) {
+            const child = note.children[i];
+            if (child.tagName === "P" && child.innerText === "") {
+              continue;
+            } else {
+              container.appendChild(child.cloneNode(true));
+              break;
+            }
+          }
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(container);
+          }
+          return container.innerHTML
+        } else {
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(note);
+          }
+          return note.innerHTML;
+        }
+      } else {
+        // Remove any anchor links if they are present
+        const anchorLink = note.querySelector('a.anchorjs-link');
+        if (anchorLink) {
+          anchorLink.remove();
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        if (note.classList.contains("callout")) {
+          return note.outerHTML;
+        } else {
+          return note.innerHTML;
+        }
+      }
+    }
+    for (var i=0; i<xrefs.length; i++) {
+      const xref = xrefs[i];
+      tippyHover(xref, undefined, function(instance) {
+        instance.disable();
+        let url = xref.getAttribute('href');
+        let hash = undefined; 
+        if (url.startsWith('#')) {
+          hash = url;
+        } else {
+          try { hash = new URL(url).hash; } catch {}
+        }
+        if (hash) {
+          const id = hash.replace(/^#\/?/, "");
+          const note = window.document.getElementById(id);
+          if (note !== null) {
+            try {
+              const html = processXRef(id, note.cloneNode(true));
+              instance.setContent(html);
+            } finally {
+              instance.enable();
+              instance.show();
+            }
+          } else {
+            // See if we can fetch this
+            fetch(url.split('#')[0])
+            .then(res => res.text())
+            .then(html => {
+              const parser = new DOMParser();
+              const htmlDoc = parser.parseFromString(html, "text/html");
+              const note = htmlDoc.getElementById(id);
+              if (note !== null) {
+                const html = processXRef(id, note);
+                instance.setContent(html);
+              } 
+            }).finally(() => {
+              instance.enable();
+              instance.show();
+            });
+          }
+        } else {
+          // See if we can fetch a full url (with no hash to target)
+          // This is a special case and we should probably do some content thinning / targeting
+          fetch(url)
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.querySelector('main.content');
+            if (note !== null) {
+              // This should only happen for chapter cross references
+              // (since there is no id in the URL)
+              // remove the first header
+              if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+                note.children[0].remove();
+              }
+              const html = processXRef(null, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      }, function(instance) {
+      });
+    }
+        let selectedAnnoteEl;
+        const selectorForAnnotation = ( cell, annotation) => {
+          let cellAttr = 'data-code-cell="' + cell + '"';
+          let lineAttr = 'data-code-annotation="' +  annotation + '"';
+          const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+          return selector;
+        }
+        const selectCodeLines = (annoteEl) => {
+          const doc = window.document;
+          const targetCell = annoteEl.getAttribute("data-target-cell");
+          const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+          const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+          const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+          const lineIds = lines.map((line) => {
+            return targetCell + "-" + line;
+          })
+          let top = null;
+          let height = null;
+          let parent = null;
+          if (lineIds.length > 0) {
+              //compute the position of the single el (top and bottom and make a div)
+              const el = window.document.getElementById(lineIds[0]);
+              top = el.offsetTop;
+              height = el.offsetHeight;
+              parent = el.parentElement.parentElement;
+            if (lineIds.length > 1) {
+              const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+              const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+              height = bottom - top;
+            }
+            if (top !== null && height !== null && parent !== null) {
+              // cook up a div (if necessary) and position it 
+              let div = window.document.getElementById("code-annotation-line-highlight");
+              if (div === null) {
+                div = window.document.createElement("div");
+                div.setAttribute("id", "code-annotation-line-highlight");
+                div.style.position = 'absolute';
+                parent.appendChild(div);
+              }
+              div.style.top = top - 2 + "px";
+              div.style.height = height + 4 + "px";
+              div.style.left = 0;
+              let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+              if (gutterDiv === null) {
+                gutterDiv = window.document.createElement("div");
+                gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+                gutterDiv.style.position = 'absolute';
+                const codeCell = window.document.getElementById(targetCell);
+                const gutter = codeCell.querySelector('.code-annotation-gutter');
+                gutter.appendChild(gutterDiv);
+              }
+              gutterDiv.style.top = top - 2 + "px";
+              gutterDiv.style.height = height + 4 + "px";
+            }
+            selectedAnnoteEl = annoteEl;
+          }
+        };
+        const unselectCodeLines = () => {
+          const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+          elementsIds.forEach((elId) => {
+            const div = window.document.getElementById(elId);
+            if (div) {
+              div.remove();
+            }
+          });
+          selectedAnnoteEl = undefined;
+        };
+          // Handle positioning of the toggle
+      window.addEventListener(
+        "resize",
+        throttle(() => {
+          elRect = undefined;
+          if (selectedAnnoteEl) {
+            selectCodeLines(selectedAnnoteEl);
+          }
+        }, 10)
+      );
+      function throttle(fn, ms) {
+      let throttle = false;
+      let timer;
+        return (...args) => {
+          if(!throttle) { // first call gets through
+              fn.apply(this, args);
+              throttle = true;
+          } else { // all the others get throttled
+              if(timer) clearTimeout(timer); // cancel #2
+              timer = setTimeout(() => {
+                fn.apply(this, args);
+                timer = throttle = false;
+              }, ms);
+          }
+        };
+      }
+        // Attach click handler to the DT
+        const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+        for (const annoteDlNode of annoteDls) {
+          annoteDlNode.addEventListener('click', (event) => {
+            const clickedEl = event.target;
+            if (clickedEl !== selectedAnnoteEl) {
+              unselectCodeLines();
+              const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+              if (activeEl) {
+                activeEl.classList.remove('code-annotation-active');
+              }
+              selectCodeLines(clickedEl);
+              clickedEl.classList.add('code-annotation-active');
+            } else {
+              // Unselect the line
+              unselectCodeLines();
+              clickedEl.classList.remove('code-annotation-active');
+            }
+          });
+        }
+    const findCites = (el) => {
+      const parentEl = el.parentElement;
+      if (parentEl) {
+        const cites = parentEl.dataset.cites;
+        if (cites) {
+          return {
+            el,
+            cites: cites.split(' ')
+          };
+        } else {
+          return findCites(el.parentElement)
+        }
+      } else {
+        return undefined;
+      }
+    };
+    var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+    for (var i=0; i<bibliorefs.length; i++) {
+      const ref = bibliorefs[i];
+      const citeInfo = findCites(ref);
+      if (citeInfo) {
+        tippyHover(citeInfo.el, function() {
+          var popup = window.document.createElement('div');
+          citeInfo.cites.forEach(function(cite) {
+            var citeDiv = window.document.createElement('div');
+            citeDiv.classList.add('hanging-indent');
+            citeDiv.classList.add('csl-entry');
+            var biblioDiv = window.document.getElementById('ref-' + cite);
+            if (biblioDiv) {
+              citeDiv.innerHTML = biblioDiv.innerHTML;
+            }
+            popup.appendChild(citeDiv);
+          });
+          return popup.innerHTML;
+        });
+      }
+    }
+  });
+  </script>
+</div> <!-- /content -->
+
+
+
+
+</body></html>
