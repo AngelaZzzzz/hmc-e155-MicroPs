@@ -4,7 +4,8 @@
 //
 // Purpose: This is the time multiplexer for the dual 7-segment display. For the first half 
 //			of each count period digit 0 is selected, for the second half digit 1 is selected.
-//			The selected value is sent to the seven_segment_decoder and only the matching//			anode is enabled. This time multiplexer multiplexes at a rate of 125 Hz, making
+//			The selected value is sent to the seven_segment_decoder and only the matching anode
+//			is enabled. This time multiplexer multiplexes at a rate of 125 Hz, making
 //			switching between displays invisible to the human eye.
 
 module time_mux #(
