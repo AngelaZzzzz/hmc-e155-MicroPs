@@ -20,7 +20,7 @@
 ├── README.md
 ├── .gitignore
 ```
-- `/labs` contains all code and files for each lab\
+- `/labs` contains all code and files for each lab
 - `/portfolio/labs` contains the lab report webpage for each lab
 
 ### Overview
