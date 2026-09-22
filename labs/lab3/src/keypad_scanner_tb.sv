@@ -1,6 +1,6 @@
 // Author:	Angela Zheng
 // Email: 	angzheng@hmc.edu
-// Date: 	9/26/2026
+// Date: 	9/21/2026
 //
 // Purpose: Testbench for keypad_scanner. The scanner drives one row high at a time,
 //			row[3] first, each for a quarter of the count period. The row output is

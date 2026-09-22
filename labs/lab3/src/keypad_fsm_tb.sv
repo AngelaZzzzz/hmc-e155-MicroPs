@@ -1,6 +1,6 @@
 // Author:	Angela Zheng
 // Email: 	angzheng@hmc.edu
-// Date: 	9/26/2026
+// Date: 	9/21/2026
 //
 // Purpose: Testbench for keypad_fsm. Drives the synchronized (active-low) column input
 //			directly with the debounce wait shrunk to DEBOUNCE_MAX = 2 clocks.

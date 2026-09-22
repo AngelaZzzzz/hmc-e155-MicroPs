@@ -1,6 +1,6 @@
 // Author:	Angela Zheng
 // Email: 	angzheng@hmc.edu
-// Date: 	9/26/2026
+// Date: 	9/21/2026
 //
 // Purpose: Keypad row scanner, non-canonical FSM with instantiated counter +
 //					output logic. Rotates through the four rows, driving one at a time, while

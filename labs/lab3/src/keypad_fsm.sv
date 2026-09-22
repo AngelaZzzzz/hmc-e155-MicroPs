@@ -1,6 +1,6 @@
 // Author:	Angela Zheng
 // Email: 	angzheng@hmc.edu
-// Date: 	9/26/2026
+// Date: 	9/21/2026
 //
 // Purpose: Canonical FSM for reading the keypad, communicating with the row scanner and a
 //					debounce timer

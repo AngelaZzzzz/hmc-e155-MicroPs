@@ -1,6 +1,6 @@
 // Author:	Angela Zheng
 // Email: 	angzheng@hmc.edu
-// Date: 	9/26/2026
+// Date: 	9/21/2026
 //
 // Purpose: Testbench for key_decoder. Checks every one-hot row/column pair against the
 //			printed keypad legend, and that inputs that are not one-hot decode to 0.

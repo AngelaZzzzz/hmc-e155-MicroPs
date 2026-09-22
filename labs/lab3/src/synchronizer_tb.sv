@@ -1,6 +1,6 @@
 // Author:	Angela Zheng
 // Email: 	angzheng@hmc.edu
-// Date: 	9/26/2026
+// Date: 	9/21/2026
 //
 // Purpose: Testbench for synchronizer. Checks that an input change appears at the output
 //			exactly two clock edges later and never earlier, for several input patterns.

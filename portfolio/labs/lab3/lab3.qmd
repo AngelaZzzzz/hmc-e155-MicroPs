@@ -1,0 +1,2886 @@
+---
+title: "Lab 3: Keypad Scanner"
+description: "Reading a 4x4 matrix keypad on the UPduino v3.1 FPGA with debouncing, and displaying the last two digits pressed"
+author: "Angela Zheng"
+date: "9/22/2026"
+categories:
+  - lab
+draft: false
+---
+
+## Introduction
+
+The goal of this lab was to turn the row scanner and multiplexed display from lab 2 into a keypad reader. The design scans a 4×4 matrix keypad, decides when a key is being pressed despite switch bounce, and shows the last two hexadecimal digits on the dual seven-segment display with the most recent digit on the right. It reads the four keypad columns `col[3:0]` and the active-low reset button, and produces:
+
+- `row[3:0]`: the rotating one-hot scan pattern from lab 2, driven onto the keypad rows
+- `seg[6:0]`: the shared cathode bus from lab 2, driven by one seven-segment decoder
+- `pnp[1:0]`: the one-hot anode enables from lab 2
+
+Each press has to register exactly once no matter how long it is held or how much it bounces, extra keys pressed during a hold have to be ignored, and the display must never show a half-decoded digit.
+
+## Design and Testing Methodology
+
+The design is split into nine modules. Four of which are reused from earlier labs, and the other five are new.
+
+Reused:
+
+- `counter.sv`: From lab 1. It's instantiated three times, as the scan timer, the display refresh timer, and the debounce timer.
+- `seven_segment_decoder.sv`: From lab 1.
+- `time_mux.sv`: 2:1 display multiplexer from lab 2.
+- `keypad_scanner.sv`: The row scanner from lab 2.
+
+New:
+
+- `lab3_az.sv`: Top level design for this lab. It instantiates the oscillator and the eight modules below and contains no logic other than the inverters on the reset button and the columns.
+- `synchronizer.sv`: Synchronizer for the keypad.
+- `keypad_fsm.sv`: A canonical FSM，communicates with the scanner through `scan_enable`, with a `counter` instance through `timer_run`, and with the digit register through `key_valid`. It has seven states: SCAN, DEBOUNCE, CHECK, REGISTER, HOLD, MULTI and RELEASE.
+- `key_decoder.sv`: Converts row and column into the hex digit printed on the key, and returns 0 for anything that is not exactly one row and one column.
+- `digit_register.sv`: Two 4-bit registers. The right digit moves left and the new key goes on the right on `key_valid`.
+
+### Debouncing strategy
+
+When a column first goes low, the FSM stops the scanner and waits 20 ms before sampling the columns. Since contact bounce lasts at most a few milliseconds, the switch will stabilize by CHECK state. In other words, we basically wait for any contact bouncing to pass before sampling. The same 20 ms wait is applied on release.
+
+The alternative I considered was a counter that restarts every time the column changes, and only registers a press once the column has been unchanged for N cycles. The benefits of it are that it reacts faster, since it fires N cycles after the last bounce rather than a fixed time after the first. However, it would use more components.
+
+### FSM partitioning
+
+There are three state machines in my design: the canonical `keypad_fsm`, the non-canonical `keypad_scanner`, and the non-canonical `counter` used as the debounce timer. They communicate as such: `keypad_fsm` drives `scan_enable` to the scanner and `timer_run` to the counter, and reads `timer_done` back from the counter's count. An alternative is to embed the 20-bit debounce counter inside the canonical FSM, which would have made the state register and next-state logic much harder to read and would have mixed a 20 ms timer with a 7-state control machine in one `always_ff` block, which is bad style.
+
+### Testing
+
+Every module has a self-checking stim/assert testbench, and the reused modules keep the testbenches from [lab 1](../lab1/lab1.qmd) and [lab 2](../lab2/lab2.qmd):
+
+- `synchronizer_tb.sv` checks that a change on `d` appears at `q` exactly two edges later and never earlier, that a one-clock pulse is passed through intact, and that a change between edges is not seen early.
+- `key_decoder_tb.sv` checks all 16 one-hot inputs against the printed legend, and that no row, two rows, two columns, and no key all decode to 0.
+- `digit_register_tb.sv` checks reset to 00, the shift on each `key_valid`, holding while `key_valid` is low, and reset mid-run.
+- `keypad_fsm_tb.sv` drives the synchronized columns directly with the debounce wait shrunk to 4 clocks, and walks every transition: a glitch shorter than the wait is not registered, a steady key registers exactly once however long it is held, a glitch while holding and bounce on release do not re-register, two keys at once register nothing, releasing one of them registers the survivor once, a key joining a registered key registers nothing, and scanning resumes after every release.
+- `lab3_az_tb.sv` exercises the interconnections. It models the keypad inside the testbench, with one key at a given row and column pulls its column low only while the scanner is driving that row. Every press and release bounces, and the presses start at different offsets from the clock edge, including right on top of it. It checks that a bounced press registers once and lands on the right digit, that a long hold does not re-register, that release bounce is ignored, that further keys shift the display, and that `seg` shows the correct digit while each anode is on.
+
+## Technical Documentation
+
+The source code for the project can be found in the associated [Github repository](https://github.com/AngelaZzzzz/hmc-e155-MicroPs/tree/main/labs/lab3/src/impl_1).
+
+### Block Diagram
+
+![Figure 1: Top level block diagram of the SystemVerilog design.](images/lab3_block_diagram_top_level.jpg)
+
+Figure 1 shows the architecture. The top-level module `lab3_az` contains the oscillator and eight submodules. `keypad_scanner` drives `row[3:0]`, the columns come back through `synchronizer` as `col_sync[3:0]`, and `keypad_fsm` reads them. The FSM's three outputs `scan_enable` goes back to the scanner, `timer_run` goes to its own debounce counter, and `key_valid` is forwarded to `digit_register`. `key_decoder` combines `row` and `~col_sync` into `key[3:0]`.
+
+<details>
+<summary>Block diagram: keypad_scanner</summary>
+
+![Figure 1a: Internal block diagram of keypad_scanner, the non-canonical row scanner reused from lab 2](images/lab3_block_diagram_keypad_scanner.jpg)
+
+</details>
+
+<details>
+<summary>Block diagram: keypad_fsm</summary>
+
+![Figure 1b: Internal block diagram of keypad_fsm, the canonical FSM and its debounce counter](images/lab3_block_diagram_keypad_fsm.jpg)
+
+</details>
+
+<details>
+<summary>Block diagram: time_mux</summary>
+
+![Figure 1c: Internal block diagram of time_mux, the 2:1 display multiplexer reused from lab 2](images/lab3_block_diagram_time_mux.jpg)
+
+</details>
+
+### State Transition Diagram
+
+![Figure 2: State transition diagram for keypad_fsm.](images/fsm_state_diagram.jpg){width=80% fig-align="center"}
+
+While scanning, a low column freezes the scanner and starts the debounce timer. When the timer expires, CHECK looks at the columns once, and if only one key is pressed, the state moves on to REGISTER, which toggles `key_valid` for one clock, then HOLD until every column is high. If several keys are pressed, the state moves to MULTI, which registers nothing. If no key is pressed, the state moves back to SCAN. Moreover, leaving HOLD or MULTI goes through RELEASE which is a second timer wait, so release bounce cannot re-trigger a press. MULTI exits to DEBOUNCE when exactly one key remains, so the single remain press of a multi-press is treated as a single press.
+
+### State Transition Table
+
+The FSM inputs are `pressed` (any column low), `one_key` (exactly one column low) and `timer_done` (debounce counter at its terminal value). Outputs are a function of state only.
+
+| Current state | Condition | Next state |
+|---|---|---|
+| SCAN | `pressed` | DEBOUNCE |
+| SCAN | else | SCAN |
+| DEBOUNCE | `timer_done` | CHECK |
+| DEBOUNCE | else | DEBOUNCE |
+| CHECK | `one_key` | REGISTER |
+| CHECK | `pressed & ~one_key` | MULTI |
+| CHECK | else | SCAN |
+| REGISTER | — | HOLD |
+| HOLD | `~pressed` | RELEASE |
+| HOLD | `pressed & ~one_key` | MULTI |
+| HOLD | else | HOLD |
+| MULTI | `~pressed` | RELEASE |
+| MULTI | `one_key` | DEBOUNCE |
+| MULTI | else | MULTI |
+| RELEASE | `~timer_done` | RELEASE |
+| RELEASE | `timer_done & pressed` | HOLD |
+| RELEASE | else | SCAN |
+
+| State | `scan_enable` | `timer_run` | `key_valid` |
+|---|---|---|---|
+| SCAN | 1 | 0 | 0 |
+| DEBOUNCE | 0 | 1 | 0 |
+| CHECK | 0 | 0 | 0 |
+| REGISTER | 0 | 0 | 1 |
+| HOLD | 0 | 0 | 0 |
+| MULTI | 0 | 0 | 0 |
+| RELEASE | 0 | 1 | 0 |
+
+### Schematic
+
+![Figure 3: Schematic of the UPduino, keypad, and dual seven-segment display. Angela Zheng, 9/28/2026](images/lab3_schematic.jpg){width=80% fig-align="center"}
+
+Figure 3 shows the off-board hardware, which is the lab 2 keypad and display hardware. Each row is driven through a 2N3904 NPN transistor wired open-collector with a **330 Ω** base resistor, each column has a **390 Ω** pull-up. The display anodes are switched by 2N3906 PNP transistors, and each segment has a **100 Ω** current-limiting resistor. The reset button is active low, and an internal 100 kΩ pull-up keeps it and the column pins from floating.
+
+### Synthesizer Output
+
+![Figure 4: Synthesis report showing no latches or tristate buffers](images/synthesis_report.png)
+
+</details>
+
+## Results and Discussion
+
+### Testbench Simulation
+
+![Figure 5: QuestaSim simulation of lab3_az](images/lab3_az_testbench.png)
+
+Zooming in Figure 5 shows that when display is A0 `seg` shows `A` while `pnp[1]` is on and `0` while `pnp[0]` is on. All 8 tests passed with no errors.
+
+<details>
+<summary>Synchronizer testbench</summary>
+
+![Figure 6: QuestaSim simulation of synchronizer](images/synchronizer_testbench.png)
+
+Every change on `d` appears on `q` two clock edges later, including a single-clock pulse. All 6 test passed with no errors.
+
+</details>
+
+<details>
+<summary>Key decoder testbench</summary>
+
+![Figure 7: QuestaSim simulation of key_decoder](images/keypad_decoder_testbench.png)
+
+`key` follows the printed legend for all 16 one-hot combinations and is 0 for every non-one-hot input. All 20 tests passed with no errors.
+
+</details>
+
+<details>
+<summary>Digit register testbench</summary>
+
+![Figure 8: QuestaSim simulation of digit_register](images/digit_register_testbench.png)
+
+Each `key_valid` toggle moves the right digit left and loads the new key on the right, and the digits freeze otherwise. All 7 tests passed with no errors.
+
+</details>
+
+<details>
+<summary>Digit register testbench</summary>
+
+![Figure 9: QuestaSim simulation of keypad_scanner](images/keypad_scanner_testbench.png)
+
+Figure 9 shows `row` cycling through `1000` → `0100` → `0010` → `0001`. The output freezes at `0100` while `enable` is low and picks up where it left off, and a mid-scan `reset` resets it to `1000`. All 13 tests passed with no errors.
+
+</details>
+
+<details>
+<summary>Keypad FSM testbench</summary>
+
+![Figure 10: QuestaSim simulation of keypad_fsm](images/keypad_fsm_testbench.png)
+
+A short glitch on `col_sync` takes the FSM to DEBOUNCE and back to SCAN with no `key_valid`. The steady key moves from DEBOUNCE → CHECK → REGISTER → HOLD and stays there through a contact glitch. The release goes through RELEASE and back to SCAN, and the two-key sequence goes to MULTI, then to DEBOUNCE and REGISTER when one key is released. All 19 tests passed with no errors.
+
+</details>
+
+The scanner, counter, seven-segment decoder and time multiplexer were not re-simulated, their testbenches and waveforms are in the [lab 2](../lab2/lab2.qmd) and [lab 1](../lab1/lab1.qmd) writeups.
+
+### Hardware
+
+The design meets all of the proficiency requirements and the excellence requirements. Every key was pressed in turn and produces its printed digit, the display shifts left with the newest digit on the right, and holding a key for any length of time registers it once. Pressing a second key while holding the first is ignored, releasing one of two held keys registers the remaining key, and holding several keys at once holds the display until they are released.
+
+## Conclusion
+
+The design reads the 4×4 keypad reliably, debounces presses and releases with a single reused counter, and displays the last two digits pressed with the newest on the right. I reused nearly all of the lab 2 hardware, and mainly added verilog code in this lab, which includes one canonical FSM, a synchronizer, a decoder and a register.
+
+I spent a total of 15 hours working on this lab.
+
+## AI Prototype Summary
+
+Model used: **Claude Haiku 4.5**
+
+### AI Chat Transcript
+
+#### Prototype A
+
+<details>
+<summary>User Prompt</summary>
+
+Target device: Lattice iCE40 UP5K FPGA with internal high-speed oscillator (~20 MHz).
+
+Write synthesizable SystemVerilog to scan a 4x4 matrix keypad and display the last two hex keys pressed on a dual 7‑segment display. Implement:
+
+A clock divider that derives a scan clock on the order of 100–200 Hz from the internal oscillator.
+A keypad scanning controller that iterates one active‑low column at a time and samples active‑low rows, registering at most one key per press (debounce‑by‑design), ignoring additional presses while any key is held, and allowing a new registration only after release.
+A top level that updates two hex digits (older and most recent) when a new key is registered and drives a time‑multiplexed two‑digit 7‑segment display without visible flicker and with balanced brightness.
+Use idiomatic SystemVerilog (e.g., logic, always_ff, enumerated states for FSMs). Provide clean module boundaries and keep all state synchronous. Include brief comments explaining the design choices.
+
+</details>
+
+<details>
+<summary>AI Response</summary>
+
+```
+// Clock divider for iCE40 UP5K internal oscillator (~20 MHz)
+// Generates scan clock (~100-200 Hz) and display clock (~500 Hz)
+ 
+module clk_divider (
+  input  logic clk_in,      // ~20 MHz internal oscillator
+  output logic clk_scan,    // ~100 Hz for keypad scanning
+  output logic clk_display  // ~500 Hz for 7-segment multiplexing
+);
+ 
+  localparam int SCAN_DIV = 20_000_000 / (2 * 100);    // Divider for 100 Hz
+  localparam int DISP_DIV = 20_000_000 / (2 * 500);    // Divider for 500 Hz
+ 
+  logic [$clog2(SCAN_DIV)-1:0] scan_cnt;
+  logic [$clog2(DISP_DIV)-1:0] disp_cnt;
+ 
+  // Scan clock divider (100 Hz)
+  always_ff @(posedge clk_in) begin
+    if (scan_cnt == SCAN_DIV - 1) begin
+      scan_cnt <= '0;
+      clk_scan <= ~clk_scan;
+    end else begin
+      scan_cnt <= scan_cnt + 1'b1;
+    end
+  end
+ 
+  // Display clock divider (500 Hz)
+  always_ff @(posedge clk_in) begin
+    if (disp_cnt == DISP_DIV - 1) begin
+      disp_cnt <= '0;
+      clk_display <= ~clk_display;
+    end else begin
+      disp_cnt <= disp_cnt + 1'b1;
+    end
+  end
+ 
+endmodule
+
+// 4x4 Keypad scanner with debounce-by-design
+// Columns are active-low outputs, rows are active-low inputs
+// Scans one column at a time, samples all rows
+// Registers key only on press-to-release transition, ignores multi-press
+ 
+module keypad_scanner (
+  input  logic clk,            // Scan clock (~100 Hz)
+  input  logic [3:0] row,      // Active-low row inputs
+  output logic [3:0] col,      // Active-low column outputs (one at a time)
+  output logic [3:0] key_code, // Hex code of detected key (row[2:0] | col_idx)
+  output logic key_valid       // Pulse when new key is registered
+);
+ 
+  // FSM states for debounce-by-design
+  typedef enum logic [1:0] {
+    IDLE  = 2'b00,   // No key pressed, waiting for press
+    HOLD  = 2'b01,   // Key pressed and held
+    WAIT  = 2'b10    // Key released, ready to register
+  } state_t;
+ 
+  state_t state, next_state;
+  logic [2:0] col_idx;         // Current column index (0-3)
+  logic any_row_active;        // True if any row is active in current column
+ 
+  // Decode column index to active-low column vector
+  always_comb begin
+    col = 4'b1111;  // All inactive by default
+    col[col_idx] = 1'b0;  // One column pulled low
+  end
+ 
+  // Detect if any row is active (low) in current scan
+  assign any_row_active = ~(row[0] & row[1] & row[2] & row[3]);
+ 
+  // Key code: {row_index[2:0], col_index[1:0]} forms 5-bit code, truncated to 4-bit
+  // In practice: row index (0-3) in bits [2:0], col_index (0-3) in bits [1:0]
+  always_comb begin
+    for (int i = 0; i < 4; i++) begin
+      if (!row[i]) begin
+        key_code = {i[2:0], col_idx[1:0]};
+      end
+    end
+  end
+ 
+  // Column scanning and FSM update
+  always_ff @(posedge clk) begin
+    state <= next_state;
+ 
+    // Always advance to next column for round-robin scanning
+    col_idx <= (col_idx == 3'd3) ? 3'd0 : col_idx + 1'b1;
+  end
+ 
+  // Debounce-by-design FSM logic
+  always_comb begin
+    next_state = state;
+    key_valid = 1'b0;
+ 
+    case (state)
+      IDLE: begin
+        // Waiting for key press: transition when any row goes active
+        if (any_row_active) begin
+          next_state = HOLD;
+        end
+      end
+ 
+      HOLD: begin
+        // Key is pressed and held: stay in HOLD
+        if (!any_row_active) begin
+          // Key released: register it and move to WAIT for debounce
+          key_valid = 1'b1;
+          next_state = WAIT;
+        end
+      end
+ 
+      WAIT: begin
+        // Brief wait after release to ensure debounce
+        // Immediately return to IDLE (next clock cycle will have progressed enough)
+        next_state = IDLE;
+      end
+ 
+      default: next_state = IDLE;
+    endcase
+  end
+ 
+endmodule
+
+// 7-segment display decoder
+// Converts 4-bit hex digit to 7-segment pattern (common cathode: active high)
+// Segment mapping: [a, b, c, d, e, f, g]
+ 
+module seg7_decoder (
+  input  logic [3:0] hex,    // Hex digit (0-F)
+  output logic [6:0] seg7    // 7-segment pattern {a, b, c, d, e, f, g}
+);
+ 
+  always_comb begin
+    case (hex)
+      4'h0: seg7 = 7'b1110111;  // 0: a, b, c, d, e, f
+      4'h1: seg7 = 7'b0100100;  // 1: b, c
+      4'h2: seg7 = 7'b1011101;  // 2: a, b, d, e, g
+      4'h3: seg7 = 7'b1101101;  // 3: a, b, c, d, g
+      4'h4: seg7 = 7'b0101110;  // 4: b, c, f, g
+      4'h5: seg7 = 7'b1101011;  // 5: a, c, d, f, g
+      4'h6: seg7 = 7'b1111011;  // 6: a, c, d, e, f, g
+      4'h7: seg7 = 7'b0100101;  // 7: a, b, c
+      4'h8: seg7 = 7'b1111111;  // 8: a, b, c, d, e, f, g (all segments)
+      4'h9: seg7 = 7'b1101111;  // 9: a, b, c, d, f, g
+      4'hA: seg7 = 7'b0111111;  // A: b, c, e, f, g
+      4'hB: seg7 = 7'b1111010;  // B: c, d, e, f, g
+      4'hC: seg7 = 7'b1110001;  // C: a, d, e, f
+      4'hD: seg7 = 7'b1110100;  // D: b, c, d, e, g
+      4'hE: seg7 = 7'b1111001;  // E: a, d, e, f, g
+      4'hF: seg7 = 7'b0111001;  // F: e, f, g (common representation)
+    endcase
+  end
+ 
+endmodule
+
+// Dual 7-segment display controller with time-multiplexing
+// Displays two hex digits with no visible flicker
+// Updates at display clock (~500 Hz), alternating between digits
+ 
+module seg7_display (
+  input  logic clk_display,      // Display clock (~500 Hz)
+  input  logic [3:0] digit_old,  // Older/left digit
+  input  logic [3:0] digit_new,  // Newer/right digit
+  output logic [6:0] seg7,       // 7-segment output {a, b, c, d, e, f, g}
+  output logic [1:0] digit_sel   // Digit select (active low): 2'b10 = left, 2'b01 = right
+);
+ 
+  logic digit_toggle;            // Alternates between 0 (left) and 1 (right)
+  logic [3:0] current_digit;     // Currently displayed digit
+  logic [6:0] seg7_raw;          // Raw 7-segment from decoder
+ 
+  // Instantiate 7-segment decoder
+  seg7_decoder decoder (
+    .hex(current_digit),
+    .seg7(seg7_raw)
+  );
+ 
+  // Toggle between digits on display clock (creates ~250 Hz refresh per digit)
+  always_ff @(posedge clk_display) begin
+    digit_toggle <= ~digit_toggle;
+  end
+ 
+  // Select which digit to display and generate digit_sel signal
+  always_comb begin
+    if (digit_toggle) begin
+      current_digit = digit_new;    // Right digit (most recent)
+      digit_sel = 2'b01;             // Active-low select for right digit
+    end else begin
+      current_digit = digit_old;     // Left digit (older)
+      digit_sel = 2'b10;             // Active-low select for left digit
+    end
+  end
+ 
+  // Segment output (passed through from decoder)
+  assign seg7 = seg7_raw;
+ 
+endmodule
+
+// Top-level keypad and display controller for iCE40 UP5K
+// Scans 4x4 keypad matrix and displays last two hex keys on dual 7-segment display
+// 
+// Ports:
+//   clk_osc: ~20 MHz internal oscillator
+//   row[3:0]: Active-low row inputs from keypad
+//   col[3:0]: Active-low column outputs to keypad (drive as open-drain)
+//   seg7[6:0]: 7-segment outputs {a, b, c, d, e, f, g}
+//   digit_sel[1:0]: Digit select (active low)
+ 
+module keypad_display_top (
+  input  logic clk_osc,
+  input  logic [3:0] row,
+  output logic [3:0] col,
+  output logic [6:0] seg7,
+  output logic [1:0] digit_sel
+);
+ 
+  // Internal clock signals
+  logic clk_scan;
+  logic clk_display;
+ 
+  // Keypad scanner signals
+  logic [3:0] key_code;
+  logic key_valid;
+ 
+  // Display data signals (4-bit hex per digit)
+  logic [3:0] digit_old;   // Previous key
+  logic [3:0] digit_new;   // Most recent key
+ 
+  // ==================== Clock Divider ====================
+  clk_divider clk_div (
+    .clk_in(clk_osc),
+    .clk_scan(clk_scan),
+    .clk_display(clk_display)
+  );
+ 
+  // ==================== Keypad Scanner ====================
+  keypad_scanner scanner (
+    .clk(clk_scan),
+    .row(row),
+    .col(col),
+    .key_code(key_code),
+    .key_valid(key_valid)
+  );
+ 
+  // ==================== Key History Register ====================
+  // When key_valid pulses, shift new key in and old key out
+  always_ff @(posedge clk_scan) begin
+    if (key_valid) begin
+      digit_old <= digit_new;    // Promote most recent to older
+      digit_new <= key_code;     // Register new key
+    end
+  end
+ 
+  // ==================== 7-Segment Display ====================
+  seg7_display display (
+    .clk_display(clk_display),
+    .digit_old(digit_old),
+    .digit_new(digit_new),
+    .seg7(seg7),
+    .digit_sel(digit_sel)
+  );
+ 
+endmodule
+
+// Testbench for keypad_display_top
+// Simulates keypad presses and verifies display output
+ 
+`timescale 1ns / 1ps
+ 
+module tb_keypad_display;
+ 
+  // Clock and reset
+  logic clk_osc;
+  
+  // Keypad signals
+  logic [3:0] row;
+  logic [3:0] col;
+  
+  // Display signals
+  logic [6:0] seg7;
+  logic [1:0] digit_sel;
+ 
+  // DUT instantiation
+  keypad_display_top dut (
+    .clk_osc(clk_osc),
+    .row(row),
+    .col(col),
+    .seg7(seg7),
+    .digit_sel(digit_sel)
+  );
+ 
+  // Clock generation: 20 MHz
+  initial begin
+    clk_osc = 1'b0;
+    forever #25ns clk_osc = ~clk_osc;  // 50 ns period = 20 MHz
+  end
+ 
+  // Stimulus and monitoring
+  initial begin
+    $dumpfile("keypad_display.vcd");
+    $dumpvars(0, tb_keypad_display);
+ 
+    // Initialize: all rows inactive (high)
+    row = 4'b1111;
+    
+    // Wait for system to stabilize
+    #1us;
+ 
+    // ===== Test 1: Press key at row=0, col=0 =====
+    $display("[%0t] Test 1: Press key (row=0, col=0)", $time);
+    press_key_raw(4'b1110, 4'b1110);  // row[0] active, col[0] active
+    
+    #1ms;  // Wait ~100 scan cycles
+    
+    // ===== Test 2: Press key at row=1, col=2 =====
+    $display("[%0t] Test 2: Press key (row=1, col=2)", $time);
+    press_key_raw(4'b1101, 4'b1011);  // row[1] active, col[2] active
+    
+    #1ms;
+    
+    // ===== Test 3: Rapid press (should register both) =====
+    $display("[%0t] Test 3: Rapid press (row=3, col=3)", $time);
+    press_key_raw(4'b0111, 4'b0111);  // row[3] active, col[3] active
+    
+    #1ms;
+ 
+    $display("\n[%0t] Simulation complete", $time);
+    #1ms;
+    $finish;
+  end
+ 
+  // Helper task: simulate keypad press
+  // This simulates closing a switch between row and column
+  task press_key_raw(
+    logic [3:0] active_rows,
+    logic [3:0] active_cols
+  );
+    begin
+      // Press: set active rows low
+      row = active_rows;
+      
+      // Hold for ~50 ms (5 scan cycles at 100 Hz)
+      #50ms;
+      
+      // Release: all rows high
+      row = 4'b1111;
+      
+      // Wait for debounce to settle
+      #50ms;
+    end
+  endtask
+ 
+  // Monitor key registration
+  always @(posedge dut.scanner.key_valid) begin
+    $display("[%0t] KEY REGISTERED: code=0x%X (row=%0d, col=%0d)",
+      $time, dut.scanner.key_code,
+      (dut.scanner.key_code >> 2) & 3'h7,
+      dut.scanner.key_code & 2'b11
+    );
+  end
+ 
+  // Monitor display updates
+  always @(posedge dut.scanner.key_valid) begin
+    #10ns;  // Wait for key_history update
+    $display("[%0t] DISPLAY UPDATE: digit_old=0x%X, digit_new=0x%X",
+      $time, dut.digit_old, dut.digit_new);
+  end
+ 
+  // Monitor multiplexing
+  logic [7:0] digit_update_count = 0;
+  always @(posedge dut.clk_display) begin
+    if (digit_update_count % 2 == 0) begin
+      $display("[%0t] Display MUX: showing digit_old=0x%X, seg7=0x%02X",
+        $time, dut.digit_old, dut.seg7);
+    end else begin
+      $display("[%0t] Display MUX: showing digit_new=0x%X, seg7=0x%02X",
+        $time, dut.digit_new, dut.seg7);
+    end
+    digit_update_count++;
+  end
+ 
+endmodule
+```
+
+</details>
+
+#### Prototype B
+
+<details>
+<summary>User Prompt 1</summary>
+
+Target device: Lattice iCE40 UP5K FPGA.
+
+Overall Goal: Write SystemVerilog to scan a 4x4 matrix keypad and display the last two hex keys pressed on a dual 7 segment display.
+
+Current Goal: Write a synthesizable SystemVerilog module that produces a one‑shot registration signal for the keypad system. Behavior:
+
+When a key press is first detected, capture the current key code and assert a single‑cycle “new key” pulse.
+While any key remains pressed, do not accept additional keys.
+Only after keys are released should a subsequent press be recognized.
+This should handle debouncing of the keys.
+Implement as a small synchronous FSM with enumerated states and glitch‑free outputs. Keep names and interfaces reasonable; do not assume any hidden modules beyond what you define here.
+
+</details>
+
+<details>
+<summary>AI Response 1</summary>
+Summary
+
+I've created a complete, production-ready SystemVerilog implementation for your iCE40 UP5K keypad system. Here's what you're getting:
+
+🎯 Core Deliverables
+
+1. keypad_oneshot.sv (200 lines)
+
+Fully self-contained module combining:
+4×4 Matrix Scanner: Sequentially drives rows, samples columns every ~50 cycles
+Debouncer FSM with 4 states (IDLE → DEBOUNCE → KEY_VALID → WAIT_RELEASE)
+One-Shot Pulse Generator: Single-cycle output on valid key press
+Key Locking: Blocks multiple key recognition while any key held
+Glitch-free registered outputs (Moore FSM)
+Configurable debounce time (DEBOUNCE_WIDTH parameter)
+
+2. keypad_display_integration.sv (100 lines)
+
+Higher-level wrapper integrating keypad with dual 7-segment display
+Maintains 2-entry key history (last + second-to-last)
+Includes hex_to_7seg() encoder for all 16 hex values (0–F)
+Ready-to-use template with optional display select mux
+
+3. keypad_oneshot_tb.sv (170 lines)
+
+Comprehensive testbench with 7 test scenarios:
+Clean key press, bouncy press, multi-key blocking, rapid re-press
+Expected output patterns and cycle-by-cycle monitoring
+Ready to run in ModelSim/Vivado/VCS
+📖 Detailed Documentation
+
+4. KEYPAD_DESIGN.md (400+ lines)
+
+FSM State Machine Diagrams with transitions
+Timing Analysis: Debounce vs. clock frequency relationships
+Parameter Tuning Guide: DEBOUNCE_WIDTH, SCAN_PRESCALE
+Synthesis Tips for iCE40 (resource usage, open-drain logic)
+Metastability Handling: Column input synchronization
+Troubleshooting Table
+
+5. ICE40_GPIO_SETUP.md (300+ lines)
+
+Pin Assignment Table: Specific GPIO mapping for iCE40 UP5K
+PCF Constraints ready to copy into your project
+I/O Buffer Configuration: Pull-up settings, drive strength
+Schematic Diagrams: Keypad + pull-up connections
+Power Supply Analysis: Current draw, decoupling recommendations
+nextpnr Flow: Complete synthesis-to-bitstream commands
+
+6. README.md (250+ lines)
+
+Quick-start guide (simulation, synthesis, hardware integration)
+Architecture overview with block diagrams
+Key code encoding table
+Performance metrics and resource utilization
+Checklist for hardware bring-up
+🏗️ Key Features
+
+✅ Debounce FSM
+
+Validates key press over configurable window (default 2^12 = ~4 ms @ 1 MHz)
+Rejects glitches occurring during debounce period
+Returns to IDLE if key released during validation
+
+✅ One-Shot Pulse
+
+Single-cycle new_key_pulse output on valid key detection
+Can trigger downstream logic (display update, UART, interrupt)
+
+✅ Key Locking
+
+Only recognizes new presses when all keys released
+Prevents double-counting and phantom key detection
+
+✅ Efficient
+
+Uses <40 LUTs, ~50 registers (1% of iCE40 UP5K)
+Scales to 12+ MHz operation
+~10–20 mA power consumption
+
+✅ Synthesizable
+
+All SystemVerilog 2012 constructs supported by Yosys
+Enumerated states, functions, parameterized modules
+No black-box primitives
+🔧 Ready to Use
+For Simulation: Run the testbench to verify behavior
+For Synthesis: Update pin assignments in .pcf file, run Yosys/nextpnr
+For Hardware: Wire keypad rows/columns and displays to GPIO per schematic
+For Integration: Include keypad_display_system module in your top-level design
+
+All files are now in /mnt/user-data/outputs/ ready for download or integration into your iCE40 project.
+
+```
+/**
+ * Keypad One-Shot Debouncer Module
+ * 
+ * Purpose: Scan a 4x4 matrix keypad, debounce inputs, and generate a single-cycle
+ *          pulse when a new key is first detected after all keys have been released.
+ *
+ * Target: Lattice iCE40 UP5K FPGA
+ * 
+ * Features:
+ *   - Debounces all 16 keys independently
+ *   - Generates one-cycle pulse on valid key press
+ *   - Latches key code until release
+ *   - Blocks multiple key recognition while any key is held
+ *   - Glitch-free outputs via registered FSM
+ */
+ 
+module keypad_oneshot #(
+    parameter DEBOUNCE_WIDTH = 12  // Debounce counter: ~4ms @ 1MHz (2^12 = 4096 cycles)
+) (
+    input  logic clk,              // System clock
+    input  logic rst_n,            // Active-low async reset
+    
+    // Keypad matrix interface (4 rows, 4 columns)
+    // Rows are driven open-drain (active low)
+    output logic [3:0] kpad_row,   // Row outputs (to scan rows 0-3)
+    input  logic [3:0] kpad_col,   // Column inputs (sense which columns are pressed)
+    
+    // Output signals
+    output logic new_key_pulse,    // One-cycle pulse on new valid key
+    output logic [3:0] key_code    // Latched key code (row[1:0] & col[1:0])
+);
+ 
+    // ========================================================================
+    // State Machine Definition
+    // ========================================================================
+    
+    typedef enum logic [1:0] {
+        IDLE,        // Waiting for key press (all keys released)
+        DEBOUNCE,    // Key activity detected, debouncing
+        KEY_VALID,   // Valid key confirmed, pulse this cycle
+        WAIT_RELEASE // Key held, waiting for all releases
+    } state_t;
+ 
+    // ========================================================================
+    // Internal Signals
+    // ========================================================================
+    
+    state_t state, next_state;
+    logic [3:0] debounce_counter, next_debounce_counter;
+    logic [3:0] current_key, latched_key, next_latched_key;
+    logic any_key_pressed, next_any_key_pressed;
+    logic [3:0] scan_row, next_scan_row;
+    logic [3:0] col_sampled, col_sampled_r;
+    
+    // Debounce threshold (when counter reaches max)
+    localparam DEBOUNCE_MAX = {DEBOUNCE_WIDTH{1'b1}};
+ 
+    // ========================================================================
+    // Keypad Matrix Scanning Logic
+    // ========================================================================
+    
+    // Sequential row scanning (0 -> 1 -> 2 -> 3 -> 0 -> ...)
+    // At ~1MHz clock, with ~20kHz scan rate desired: scan_row increments every 50 cycles
+    logic [9:0] scan_prescaler, next_scan_prescaler;
+    localparam SCAN_PRESCALE = 10'd50;  // Adjust for desired scan frequency
+    
+    always_comb begin
+        next_scan_prescaler = scan_prescaler + 1'b1;
+        next_scan_row = scan_row;
+        
+        if (scan_prescaler == (SCAN_PRESCALE - 1)) begin
+            next_scan_prescaler = '0;
+            next_scan_row = scan_row + 1'b1;  // Cycles through 0,1,2,3,0,...
+        end
+    end
+    
+    // Drive row outputs: active-low (open-drain style)
+    // Only the current scan row is driven low; others are high-impedance
+    assign kpad_row = ~(4'b0001 << scan_row);
+    
+    // Sample columns synchronously
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            col_sampled_r <= '1;  // Inactive state (no keys pressed)
+        end else begin
+            col_sampled_r <= kpad_col;  // Glitch filter: use delayed sample
+        end
+    end
+    assign col_sampled = col_sampled_r;
+    
+    // Extract key code from current row and column
+    // Key code = {row[1:0], col[1:0]} -> 16 possible values (0-15)
+    assign current_key = {scan_row[1:0], col_sampled};
+    
+    // Detect if ANY column is active (low) in current row
+    assign any_key_pressed = ~(col_sampled[0] & col_sampled[1] & col_sampled[2] & col_sampled[3]);
+ 
+    // ========================================================================
+    // Debounce + One-Shot FSM
+    // ========================================================================
+    
+    always_comb begin
+        next_state = state;
+        next_debounce_counter = debounce_counter;
+        next_latched_key = latched_key;
+        new_key_pulse = 1'b0;
+        
+        case (state)
+            // --- IDLE: Waiting for key press ---
+            IDLE: begin
+                if (any_key_pressed) begin
+                    // Key activity detected; capture code and start debounce
+                    next_state = DEBOUNCE;
+                    next_debounce_counter = '0;
+                    next_latched_key = current_key;
+                end
+            end
+            
+            // --- DEBOUNCE: Validating key press ---
+            DEBOUNCE: begin
+                if (!any_key_pressed) begin
+                    // Glitch: key released during debounce period
+                    next_state = IDLE;
+                    next_debounce_counter = '0;
+                end else if (debounce_counter == DEBOUNCE_MAX) begin
+                    // Debounce period elapsed and key still pressed
+                    next_state = KEY_VALID;
+                end else begin
+                    // Increment debounce counter
+                    next_debounce_counter = debounce_counter + 1'b1;
+                end
+            end
+            
+            // --- KEY_VALID: Assert pulse, then wait for release ---
+            KEY_VALID: begin
+                new_key_pulse = 1'b1;  // Output pulse this cycle
+                next_state = WAIT_RELEASE;
+            end
+            
+            // --- WAIT_RELEASE: Hold until all keys are released ---
+            WAIT_RELEASE: begin
+                if (!any_key_pressed) begin
+                    // All keys released; return to IDLE
+                    next_state = IDLE;
+                    next_debounce_counter = '0;
+                end
+                // Otherwise stay in WAIT_RELEASE
+            end
+        endcase
+    end
+ 
+    // ========================================================================
+    // Sequential Logic (State Registers)
+    // ========================================================================
+    
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            state <= IDLE;
+            debounce_counter <= '0;
+            latched_key <= '0;
+            scan_row <= '0;
+            scan_prescaler <= '0;
+        end else begin
+            state <= next_state;
+            debounce_counter <= next_debounce_counter;
+            latched_key <= next_latched_key;
+            scan_row <= next_scan_row;
+            scan_prescaler <= next_scan_prescaler;
+        end
+    end
+ 
+    // ========================================================================
+    // Output Assignment
+    // ========================================================================
+    
+    assign key_code = latched_key;
+ 
+endmodule
+
+/**
+ * Integration Example: Keypad + Dual 7-Segment Display
+ * 
+ * Combines the keypad_oneshot module with a simple 7-segment display driver
+ * to show the last two hex keys pressed.
+ * 
+ * Target: Lattice iCE40 UP5K FPGA
+ */
+ 
+module keypad_display_system (
+    input  logic clk,              // System clock (1 MHz or higher)
+    input  logic rst_n,            // Active-low reset
+    
+    // Keypad connections
+    output logic [3:0] kpad_row,   // Row outputs
+    input  logic [3:0] kpad_col,   // Column inputs
+    
+    // 7-Segment display outputs (common-cathode example)
+    // Left display (second-to-last key), Right display (last key)
+    output logic [6:0] seg7_left,  // Segments A-G for left digit
+    output logic [6:0] seg7_right  // Segments A-G for right digit
+);
+ 
+    // ========================================================================
+    // Internal Signals
+    // ========================================================================
+    
+    logic new_key_pulse;
+    logic [3:0] pressed_key;
+    logic [3:0] key_history [0:1];  // [0] = last, [1] = second-to-last
+ 
+    // ========================================================================
+    // Instantiate Keypad Scanner
+    // ========================================================================
+    
+    keypad_oneshot #(
+        .DEBOUNCE_WIDTH(12)  // ~4ms debounce at 1 MHz
+    ) keypad_scanner (
+        .clk(clk),
+        .rst_n(rst_n),
+        .kpad_row(kpad_row),
+        .kpad_col(kpad_col),
+        .new_key_pulse(new_key_pulse),
+        .key_code(pressed_key)
+    );
+ 
+    // ========================================================================
+    // Key History Register (Maintains Last Two Keys)
+    // ========================================================================
+    
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            key_history[0] <= 4'h0;  // Last key
+            key_history[1] <= 4'h0;  // Second-to-last key
+        end else if (new_key_pulse) begin
+            // Shift history: new key becomes [0], old [0] becomes [1]
+            key_history[1] <= key_history[0];
+            key_history[0] <= pressed_key;
+        end
+    end
+ 
+    // ========================================================================
+    // 7-Segment Converter (Hex to 7-Segment Encoding)
+    // ========================================================================
+    // Encoding for common-cathode display (1 = segment on):
+    //   gfedcba  (bit order for standard 7-segment)
+    //   6543210
+    //
+    // Standard layout:
+    //     aaa
+    //    f   b
+    //    f   b
+    //     ggg
+    //    e   c
+    //    e   c
+    //     ddd
+    
+    function logic [6:0] hex_to_7seg(logic [3:0] hex);
+        case (hex)
+            4'h0: hex_to_7seg = 7'b0111111;  // 0
+            4'h1: hex_to_7seg = 7'b0000110;  // 1
+            4'h2: hex_to_7seg = 7'b1011011;  // 2
+            4'h3: hex_to_7seg = 7'b1001111;  // 3
+            4'h4: hex_to_7seg = 7'b1100110;  // 4
+            4'h5: hex_to_7seg = 7'b1101101;  // 5
+            4'h6: hex_to_7seg = 7'b1111101;  // 6
+            4'h7: hex_to_7seg = 7'b0000111;  // 7
+            4'h8: hex_to_7seg = 7'b1111111;  // 8
+            4'h9: hex_to_7seg = 7'b1101111;  // 9
+            4'hA: hex_to_7seg = 7'b1110111;  // A
+            4'hB: hex_to_7seg = 7'b1111100;  // B
+            4'hC: hex_to_7seg = 7'b0111001;  // C
+            4'hD: hex_to_7seg = 7'b1011110;  // D
+            4'hE: hex_to_7seg = 7'b1111001;  // E
+            4'hF: hex_to_7seg = 7'b1110001;  // F
+            default: hex_to_7seg = 7'b0000000;  // Off
+        endcase
+    endfunction
+ 
+    // ========================================================================
+    // Assign 7-Segment Outputs
+    // ========================================================================
+    
+    assign seg7_left = hex_to_7seg(key_history[1]);   // Second-to-last key
+    assign seg7_right = hex_to_7seg(key_history[0]);  // Last key
+ 
+endmodule
+ 
+/**
+ * Optional: Display Mux for Common-Anode or Common-Cathode with Select Lines
+ * 
+ * If your display requires active selection (e.g., common-anode with 
+ * per-digit enable signals), use this wrapper:
+ */
+ 
+module keypad_display_with_select (
+    input  logic clk,
+    input  logic rst_n,
+    
+    // Keypad
+    output logic [3:0] kpad_row,
+    input  logic [3:0] kpad_col,
+    
+    // 7-Segment displays (with common line control)
+    output logic [6:0] seg7_left,
+    output logic [6:0] seg7_right,
+    output logic disp_left_en,   // Active high = left digit visible
+    output logic disp_right_en   // Active high = right digit visible
+);
+ 
+    keypad_display_system display_system (
+        .clk(clk),
+        .rst_n(rst_n),
+        .kpad_row(kpad_row),
+        .kpad_col(kpad_col),
+        .seg7_left(seg7_left),
+        .seg7_right(seg7_right)
+    );
+ 
+    // For static display (both digits always on):
+    assign disp_left_en = 1'b1;
+    assign disp_right_en = 1'b1;
+ 
+endmodule
+ 
+/**
+ * Optional: Testbench for Display Integration
+ */
+ 
+`ifdef SIM
+module keypad_display_tb;
+ 
+    logic clk;
+    logic rst_n;
+    logic [3:0] kpad_row;
+    logic [3:0] kpad_col;
+    logic [6:0] seg7_left;
+    logic [6:0] seg7_right;
+ 
+    keypad_display_system dut (
+        .clk(clk),
+        .rst_n(rst_n),
+        .kpad_row(kpad_row),
+        .kpad_col(kpad_col),
+        .seg7_left(seg7_left),
+        .seg7_right(seg7_right)
+    );
+ 
+    always begin
+        #500 clk = ~clk;
+    end
+ 
+    initial begin
+        clk = 0;
+        rst_n = 1;
+        kpad_col = 4'b1111;
+        
+        #1000 rst_n = 0;
+        #1000 rst_n = 1;
+        
+        // Simulate pressing key 0x5
+        #5000 kpad_col = 4'b1101;  // Column 1 low for some row
+        #300000;  // Wait for debounce
+        kpad_col = 4'b1111;
+        #5000;
+        
+        // Simulate pressing key 0xA
+        kpad_col = 4'b1011;  // Column 2 low for some row
+        #300000;  // Wait for debounce
+        kpad_col = 4'b1111;
+        #5000;
+        
+        $display("seg7_left = %b (second-to-last key)", seg7_left);
+        $display("seg7_right = %b (last key)", seg7_right);
+        
+        $finish;
+    end
+ 
+endmodule
+`endif
+
+/**
+ * Testbench for keypad_oneshot module
+ * 
+ * Tests:
+ *   1. Clean key press (no bounce)
+ *   2. Bouncy key press with glitch suppression
+ *   3. Multi-key scenario (second press ignored while first held)
+ *   4. Key release and re-press
+ */
+ 
+`timescale 1ns / 1ns
+ 
+module keypad_oneshot_tb;
+ 
+    // ========================================================================
+    // Testbench Signals
+    // ========================================================================
+    
+    logic clk;
+    logic rst_n;
+    
+    logic [3:0] kpad_row;
+    logic [3:0] kpad_col;
+    
+    logic new_key_pulse;
+    logic [3:0] key_code;
+    
+    // Cycle counter for readability
+    logic [31:0] cycle_count;
+ 
+    // ========================================================================
+    // DUT Instantiation
+    // ========================================================================
+    
+    keypad_oneshot #(
+        .DEBOUNCE_WIDTH(8)  // Shorter for simulation (~256 cycles = ~256us @ 1MHz)
+    ) dut (
+        .clk(clk),
+        .rst_n(rst_n),
+        .kpad_row(kpad_row),
+        .kpad_col(kpad_col),
+        .new_key_pulse(new_key_pulse),
+        .key_code(key_code)
+    );
+ 
+    // ========================================================================
+    // Clock Generation (1 MHz = 1000 ns period)
+    // ========================================================================
+    
+    always begin
+        #500 clk = ~clk;
+    end
+ 
+    // ========================================================================
+    // Cycle Counter
+    // ========================================================================
+    
+    always_ff @(posedge clk) begin
+        cycle_count <= cycle_count + 1'b1;
+    end
+ 
+    // ========================================================================
+    // Test Stimulus
+    // ========================================================================
+    
+    task press_key(input logic [3:0] row, input logic [3:0] col, input string desc);
+        // Set the column line low for the pressed key, others high
+        kpad_col = ~(4'b0001 << col);
+        #1 $display("[%5d] Press   Key(%d,%d): %s", cycle_count, row, col, desc);
+    endtask
+    
+    task release_key();
+        kpad_col = 4'b1111;  // All columns high (no keys pressed)
+        #1 $display("[%5d] Release all keys", cycle_count);
+    endtask
+    
+    task wait_cycles(input integer n);
+        repeat(n) @(posedge clk);
+    endtask
+ 
+    initial begin
+        // ====================================================================
+        // Initialize Signals
+        // ====================================================================
+        
+        clk = 1'b0;
+        rst_n = 1'b1;
+        kpad_col = 4'b1111;  // All high = no keys pressed
+        cycle_count = 0;
+        
+        $display("\n========================================");
+        $display(" Keypad One-Shot Debouncer Testbench");
+        $display("========================================\n");
+        
+        // ====================================================================
+        // Test 1: Reset
+        // ====================================================================
+        
+        $display("TEST 1: Reset and Initialization");
+        rst_n = 1'b0;
+        wait_cycles(2);
+        rst_n = 1'b1;
+        wait_cycles(5);
+        $display("  State should be IDLE, no pulse\n");
+        
+        // ====================================================================
+        // Test 2: Clean Key Press (Row 0, Col 1 = Key 0x01)
+        // ====================================================================
+        
+        $display("TEST 2: Clean Key Press (Row0, Col1)");
+        press_key(0, 1, "Key 0x01");
+        wait_cycles(300);  // Wait for debounce to complete
+        $display("  Expected: one_key_pulse=1 for one cycle around cycle ~308");
+        $display("  key_code should latch to 0x01\n");
+        
+        // ====================================================================
+        // Test 3: Try pressing another key while first is held
+        // ====================================================================
+        
+        $display("TEST 3: Try pressing second key while first held");
+        wait_cycles(50);
+        $display("  (Key 0x01 still held)\n");
+        $display("  Expected: no new pulse, key_code remains 0x01\n");
+        
+        // ====================================================================
+        // Test 4: Release first key
+        // ====================================================================
+        
+        $display("TEST 4: Release all keys");
+        release_key();
+        wait_cycles(100);
+        $display("  Expected: FSM returns to IDLE\n");
+        
+        // ====================================================================
+        // Test 5: Bouncy key press (Row 2, Col 3 = Key 0x0B)
+        // ====================================================================
+        
+        $display("TEST 5: Bouncy Key Press (Row2, Col3 with glitches)");
+        press_key(2, 3, "Key 0x0B");
+        wait_cycles(50);
+        release_key();        // Glitch 1: quick release
+        $display("  (Glitch: brief release)");
+        wait_cycles(20);
+        press_key(2, 3, "Key 0x0B again");
+        $display("  (Key re-pressed before debounce timeout)");
+        wait_cycles(250);     // Let debounce complete
+        $display("  Expected: one pulse after debounce completes, key_code=0x0B");
+        release_key();
+        wait_cycles(100);
+        $display("  Expected: FSM returns to IDLE after release\n");
+        
+        // ====================================================================
+        // Test 6: Rapid key presses (same key twice)
+        // ====================================================================
+        
+        $display("TEST 6: Rapid Key Presses (same key, twice)");
+        press_key(1, 0, "Key 0x04");
+        wait_cycles(300);     // Debounce and pulse
+        $display("  (Pulse generated for first press)");
+        release_key();
+        wait_cycles(50);
+        
+        $display("  Press same key again");
+        press_key(1, 0, "Key 0x04");
+        wait_cycles(300);     // Debounce and pulse
+        $display("  Expected: second pulse generated after debounce");
+        release_key();
+        wait_cycles(50);
+        $display("");
+        
+        // ====================================================================
+        // Test 7: All zeros and ones edge cases
+        // ====================================================================
+        
+        $display("TEST 7: Edge Cases");
+        press_key(3, 2, "Key 0x0E");
+        wait_cycles(300);
+        release_key();
+        wait_cycles(100);
+        $display("  Completed edge case test\n");
+        
+        // ====================================================================
+        // Finish
+        // ====================================================================
+        
+        wait_cycles(50);
+        $display("========================================");
+        $display(" Simulation Complete");
+        $display("========================================\n");
+        $finish;
+    end
+ 
+    // ========================================================================
+    // Monitor: Print state and outputs on each clock edge
+    // ========================================================================
+    
+    always @(posedge clk) begin
+        if (new_key_pulse) begin
+            $display("[%5d] >>> NEW_KEY_PULSE! Key Code = 0x%X <<<", 
+                     cycle_count, key_code);
+        end
+    end
+ 
+endmodule
+
+```
+
+</details>
+
+<details>
+<summary>User Prompt 2</summary>
+
+Target device: Lattice iCE40 UP5K FPGA.
+
+Write a synthesizable SystemVerilog module that cycles through keypad columns (active‑low, one at a time) and samples rows (active‑low) to detect a single key at a time. Behavior:
+
+Iterate columns at a suitable scan rate derived from the divided clock and sample rows.
+When a key is detected, report a stable key code consistent with a standard 4x4 keypad layout and maintain it while the key remains pressed.
+Provide a boolean signal indicating whether any key is currently pressed.
+Use clean state encoding and synchronous logic; avoid combinational feedback and latches.
+
+</details>
+
+<details>
+<summary>AI Response 2</summary>
+
+```
+/**
+ * Keypad Column Scanner Module
+ * 
+ * Purpose: Scan a 4x4 matrix keypad by driving columns active-low (one at a time)
+ *          and sampling rows to detect key presses. Report stable key code and
+ *          key-press status.
+ *
+ * Target: Lattice iCE40 UP5K FPGA
+ * 
+ * Features:
+ *   - Configurable clock divider for scan rate
+ *   - One column driven active-low at a time; others high-impedance
+ *   - Row samples synchronized to avoid metastability
+ *   - Stable key code (maintained while key held)
+ *   - Key-pressed boolean flag
+ *   - No combinational feedback or latches; pure synchronous logic
+ */
+ 
+module keypad_column_scanner #(
+    parameter CLOCK_DIV = 9'd100,  // Clock divider for scan rate
+                                   // Scan_rate = clk_freq / (2 * CLOCK_DIV * 4 columns)
+                                   // E.g., 1 MHz / (2 * 100 * 4) = 1.25 kHz per column
+                                   // Total ~5 kHz cycle rate
+    
+    parameter SAMPLE_DELAY = 4'd8  // Settle time (cycles) before sampling after column change
+                                   // Allows RC settling on column lines
+) (
+    input  logic clk,              // System clock
+    input  logic rst_n,            // Active-low async reset
+    
+    // Keypad matrix interface
+    // Columns are driven open-drain (active low); rows are sampled (active low when pressed)
+    output logic [3:0] kpad_col,   // Column outputs (one active-low at a time)
+    input  logic [3:0] kpad_row,   // Row inputs (active-low when key pressed)
+    
+    // Output signals
+    output logic [3:0] key_code,   // Latched key code (row[1:0] & col[1:0])
+    output logic key_pressed       // High when any key is detected and stable
+);
+ 
+    // ========================================================================
+    // Type Definitions
+    // ========================================================================
+    
+    // Scanner state machine: iterates through column selection
+    typedef enum logic [1:0] {
+        SETTLE,        // Waiting for column line to settle
+        SAMPLE,        // Ready to sample rows
+        ADVANCE,       // Moving to next column
+        IDLE           // Placeholder (not used, but kept for clarity)
+    } scan_state_t;
+ 
+    // ========================================================================
+    // Internal Signals
+    // ========================================================================
+    
+    // Clock divider and prescaler
+    logic [8:0] div_counter;
+    logic div_pulse;              // Pulses every CLOCK_DIV cycles
+    
+    // Column selection
+    logic [1:0] current_col;      // Current column being scanned (0-3)
+    logic [3:0] col_decoded;      // One-hot column decoder (driving low)
+    
+    // Sample pipeline (for metastability hardening)
+    logic [3:0] row_sample0;      // First stage (async sample)
+    logic [3:0] row_sample1;      // Second stage (sync after 1 cycle)
+    logic [3:0] row_stable;       // Stable sample after settle delay
+    
+    // Settle counter
+    logic [3:0] settle_counter;
+    logic settle_done;
+    
+    // Scanner state machine
+    scan_state_t scan_state, next_scan_state;
+    
+    // Key detection
+    logic any_row_active;         // Any row line is low (key detected)
+    logic [1:0] detected_row;     // Which row is active (priority encoded)
+    logic [1:0] detected_col;     // Current column
+    logic [3:0] detected_key;     // Combination: {row, col}
+    
+    // Latched key output
+    logic [3:0] latched_key;
+    logic key_currently_pressed;
+ 
+    // ========================================================================
+    // Clock Divider (Prescaler)
+    // ========================================================================
+    // Generates a pulse every CLOCK_DIV cycles for scan timing
+    
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            div_counter <= '0;
+            div_pulse <= 1'b0;
+        end else begin
+            if (div_counter == (CLOCK_DIV - 1)) begin
+                div_counter <= '0;
+                div_pulse <= 1'b1;
+            end else begin
+                div_counter <= div_counter + 1'b1;
+                div_pulse <= 1'b0;
+            end
+        end
+    end
+ 
+    // ========================================================================
+    // Column Iterator
+    // ========================================================================
+    // Cycles through columns 0-3 on div_pulse
+    
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            current_col <= 2'b00;
+        end else if (div_pulse) begin
+            current_col <= current_col + 1'b1;  // Wraps naturally at 3→0
+        end
+    end
+    
+    // Decode current column to one-hot; drive active-low (0 = active)
+    always_comb begin
+        case (current_col)
+            2'b00: col_decoded = 4'b1110;  // Column 0 active (low)
+            2'b01: col_decoded = 4'b1101;  // Column 1 active (low)
+            2'b10: col_decoded = 4'b1011;  // Column 2 active (low)
+            2'b11: col_decoded = 4'b0111;  // Column 3 active (low)
+            default: col_decoded = 4'b1111;  // All high (none active)
+        endcase
+    end
+    
+    assign kpad_col = col_decoded;
+ 
+    // ========================================================================
+    // Row Sample Pipeline (Metastability Hardening)
+    // ========================================================================
+    // Two-stage synchronizer + settle delay to handle async row inputs
+    
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            row_sample0 <= 4'b1111;  // Inactive state (no keys pressed)
+            row_sample1 <= 4'b1111;
+        end else begin
+            row_sample0 <= kpad_row;  // Direct sample
+            row_sample1 <= row_sample0;  // Delayed by 1 cycle
+        end
+    end
+    
+    // Settle delay: count cycles after column change, then latch stable sample
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            settle_counter <= '0;
+            row_stable <= 4'b1111;
+        end else if (div_pulse) begin
+            // Column just changed; reset settle counter
+            settle_counter <= '0;
+        end else begin
+            if (settle_counter < SAMPLE_DELAY) begin
+                settle_counter <= settle_counter + 1'b1;
+            end else begin
+                // Settle time elapsed; capture stable sample
+                row_stable <= row_sample1;
+            end
+        end
+    end
+ 
+    // ========================================================================
+    // Key Detection Logic
+    // ========================================================================
+    // Determine which row is active (if any) and encode key code
+    
+    // Detect if any row line is active (low)
+    assign any_row_active = ~(row_stable[0] & row_stable[1] & row_stable[2] & row_stable[3]);
+    
+    // Priority encoder: find first active row (lowest index)
+    always_comb begin
+        if (!row_stable[0]) detected_row = 2'b00;
+        else if (!row_stable[1]) detected_row = 2'b01;
+        else if (!row_stable[2]) detected_row = 2'b10;
+        else detected_row = 2'b11;
+    end
+    
+    // Encode key: {row[1:0], col[1:0]}
+    assign detected_col = current_col;
+    assign detected_key = {detected_row, detected_col};
+ 
+    // ========================================================================
+    // Key Code Latch
+    // ========================================================================
+    // Maintain key code while key is pressed; update when new key detected
+    
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            latched_key <= '0;
+            key_currently_pressed <= 1'b0;
+        end else begin
+            if (any_row_active) begin
+                // Key pressed; latch its code
+                latched_key <= detected_key;
+                key_currently_pressed <= 1'b1;
+            end else begin
+                // No key pressed
+                key_currently_pressed <= 1'b0;
+                // latched_key holds previous value (don't clear)
+            end
+        end
+    end
+ 
+    // ========================================================================
+    // Output Assignment
+    // ========================================================================
+    
+    assign key_code = latched_key;
+    assign key_pressed = key_currently_pressed;
+ 
+endmodule
+
+/**
+ * Testbench for keypad_column_scanner module
+ * 
+ * Tests:
+ *   1. Scan pattern verification (columns cycle 0-1-2-3-0-...)
+ *   2. Single key detection at each position
+ *   3. Key code stability while pressed
+ *   4. Key release detection
+ *   5. Multiple keys attempted (one recognized at a time)
+ *   6. Metastability handling (samples settle before use)
+ */
+
+`timescale 1ns / 1ns
+
+module keypad_column_scanner_tb;
+
+    // ========================================================================
+    // Testbench Signals
+    // ========================================================================
+    
+    logic clk;
+    logic rst_n;
+    
+    logic [3:0] kpad_col;
+    logic [3:0] kpad_row;
+    
+    logic [3:0] key_code;
+    logic key_pressed;
+    
+    // Monitoring
+    logic [31:0] cycle_count;
+    logic [2:0] expected_col;
+
+    // ========================================================================
+    // DUT Instantiation
+    // ========================================================================
+    
+    keypad_column_scanner #(
+        .CLOCK_DIV(10),        // Faster divider for simulation
+        .SAMPLE_DELAY(3)       // Shorter settle time for simulation
+    ) dut (
+        .clk(clk),
+        .rst_n(rst_n),
+        .kpad_col(kpad_col),
+        .kpad_row(kpad_row),
+        .key_code(key_code),
+        .key_pressed(key_pressed)
+    );
+
+    // ========================================================================
+    // Clock Generation (1 MHz = 1000 ns period)
+    // ========================================================================
+    
+    always begin
+        #500 clk = ~clk;
+    end
+
+    // ========================================================================
+    // Cycle Counter
+    // ========================================================================
+    
+    always_ff @(posedge clk) begin
+        cycle_count <= cycle_count + 1'b1;
+    end
+
+    // ========================================================================
+    // Test Tasks
+    // ========================================================================
+    
+    task press_key(input logic [1:0] row, input logic [1:0] col, input string desc);
+        // Press a specific key at {row, col}
+        // Set the row line low for that position
+        kpad_row = 4'b1111;  // Start with all high
+        kpad_row[row] = 1'b0;  // Drive specific row low
+        
+        #1 $display("[%5d] Press Key(%d,%d): %s → Expected code: 0x%X",
+                    cycle_count, row, col, desc, {row, col});
+    endtask
+    
+    task release_key();
+        kpad_row = 4'b1111;  // All rows high (no keys pressed)
+        #1 $display("[%5d] Release all keys", cycle_count);
+    endtask
+    
+    task wait_cycles(input integer n);
+        repeat(n) @(posedge clk);
+    endtask
+    
+    task wait_for_column(input logic [1:0] col);
+        // Wait until the scanner cycles to the specified column
+        integer timeout = 1000;
+        while (timeout > 0) begin
+            @(posedge clk);
+            timeout = timeout - 1;
+            
+            // Decode which column is currently active
+            logic [1:0] active_col;
+            case (kpad_col)
+                4'b1110: active_col = 2'b00;
+                4'b1101: active_col = 2'b01;
+                4'b1011: active_col = 2'b10;
+                4'b0111: active_col = 2'b11;
+                default: active_col = 2'b11;
+            endcase
+            
+            if (active_col == col) begin
+                timeout = 0;  // Found the column
+            end
+        end
+        
+        if (timeout == 0) begin
+            $display("[%5d]   → Scanner at column %d", cycle_count, col);
+        end else begin
+            $display("[%5d]   WARNING: Timeout waiting for column %d", cycle_count, col);
+        end
+    endtask
+
+    // ========================================================================
+    // Main Test Sequence
+    // ========================================================================
+    
+    initial begin
+        // ====================================================================
+        // Initialize
+        // ====================================================================
+        
+        clk = 1'b0;
+        rst_n = 1'b1;
+        kpad_row = 4'b1111;  // All rows high (inactive)
+        cycle_count = 0;
+        
+        $display("\n========================================");
+        $display(" Keypad Column Scanner Testbench");
+        $display("========================================\n");
+        
+        // ====================================================================
+        // Test 1: Reset and Initialization
+        // ====================================================================
+        
+        $display("TEST 1: Reset and Initialization");
+        rst_n = 1'b0;
+        wait_cycles(2);
+        rst_n = 1'b1;
+        wait_cycles(5);
+        $display("  Expected: Column cycle starts (0 → 1 → 2 → 3 → 0)");
+        $display("  key_pressed should be LOW (no key pressed)\n");
+        
+        // ====================================================================
+        // Test 2: Verify Column Scan Cycling
+        // ====================================================================
+        
+        $display("TEST 2: Column Scan Pattern");
+        wait_cycles(100);
+        
+        // Monitor for one complete scan cycle
+        logic [1:0] col_sequence [0:15];
+        for (int i = 0; i < 16; i = i + 1) begin
+            case (kpad_col)
+                4'b1110: col_sequence[i] = 2'b00;
+                4'b1101: col_sequence[i] = 2'b01;
+                4'b1011: col_sequence[i] = 2'b10;
+                4'b0111: col_sequence[i] = 2'b11;
+                default: col_sequence[i] = 2'b11;
+            endcase
+            @(posedge clk);
+        end
+        
+        $display("  Column sequence: %d → %d → %d → %d → %d → %d → %d → %d",
+                 col_sequence[0], col_sequence[1], col_sequence[2], col_sequence[3],
+                 col_sequence[4], col_sequence[5], col_sequence[6], col_sequence[7]);
+        $display("  Expected: Repeating 0 → 1 → 2 → 3 pattern\n");
+        
+        // ====================================================================
+        // Test 3: Single Key Press - Key (0,0)
+        // ====================================================================
+        
+        $display("TEST 3: Press Key(0,0) - Row 0, Col 0");
+        wait_for_column(2'b00);
+        press_key(0, 0, "Key 1 (top-left)");
+        wait_cycles(50);  // Let settle time complete
+        
+        $display("  At cycle [%d]:", cycle_count);
+        $display("    key_pressed = %b (expect 1)", key_pressed);
+        $display("    key_code = 0x%X (expect 0x0)", key_code);
+        
+        release_key();
+        wait_cycles(20);
+        $display("  After release: key_pressed = %b (expect 0)\n", key_pressed);
+        
+        // ====================================================================
+        // Test 4: Single Key Press - Key (2,3)
+        // ====================================================================
+        
+        $display("TEST 4: Press Key(2,3) - Row 2, Col 3");
+        wait_for_column(2'b11);
+        press_key(2, 3, "Key C (bottom-right)");
+        wait_cycles(50);
+        
+        $display("  At cycle [%d]:", cycle_count);
+        $display("    key_pressed = %b (expect 1)", key_pressed);
+        $display("    key_code = 0x%X (expect 0xB)", key_code);
+        
+        release_key();
+        wait_cycles(20);
+        $display("  After release: key_pressed = %b (expect 0)\n", key_pressed);
+        
+        // ====================================================================
+        // Test 5: Multiple Keys Pressed Simultaneously
+        // ====================================================================
+        
+        $display("TEST 5: Multiple Keys (Only one recognized)");
+        wait_for_column(2'b01);
+        
+        // Press two keys at once
+        kpad_row = 4'b1011;  // Rows 2 and 3 active
+        #1 $display("[%5d] Press Keys at Row 2 and Row 3 (same column)",
+                    cycle_count);
+        
+        wait_cycles(50);
+        
+        $display("  At cycle [%d]:", cycle_count);
+        $display("    key_pressed = %b (expect 1)", key_pressed);
+        $display("    key_code = 0x%X (expect 0x4 or 0x5 - priority encoded)", key_code);
+        $display("    (Priority encoder selects first active row)\n");
+        
+        release_key();
+        wait_cycles(20);
+        
+        // ====================================================================
+        // Test 6: Key Hold (Stable Code Output)
+        // ====================================================================
+        
+        $display("TEST 6: Key Hold - Code Stability");
+        wait_for_column(2'b10);
+        press_key(1, 2, "Key 6");
+        
+        $display("  Monitoring key code over multiple cycles...");
+        for (int i = 0; i < 30; i = i + 1) begin
+            if (i == 0 || i == 10 || i == 20) begin
+                $display("    Cycle [%d]: key_pressed=%b, key_code=0x%X",
+                         cycle_count, key_pressed, key_code);
+            end
+            @(posedge clk);
+        end
+        $display("  Expected: Constant code (0x6) while pressed\n");
+        
+        release_key();
+        wait_cycles(20);
+        
+        // ====================================================================
+        // Test 7: Key Release and Re-press
+        // ====================================================================
+        
+        $display("TEST 7: Release and Re-press Same Key");
+        wait_for_column(2'b00);
+        
+        press_key(3, 0, "Key * (bottom-left)");
+        wait_cycles(50);
+        $display("  Press 1: key_pressed=%b, key_code=0x%X",
+                 key_pressed, key_code);
+        
+        release_key();
+        wait_cycles(30);
+        
+        press_key(3, 0, "Key * again");
+        wait_cycles(50);
+        $display("  Press 2: key_pressed=%b, key_code=0x%X",
+                 key_pressed, key_code);
+        
+        release_key();
+        wait_cycles(20);
+        $display("  Expected: Same key code (0xC) recognized both times\n");
+        
+        // ====================================================================
+        // Test 8: All Corners (Boundary Check)
+        // ====================================================================
+        
+        $display("TEST 8: Corner Key Presses");
+        
+        // Top-left: (0,0)
+        wait_for_column(2'b00);
+        press_key(0, 0, "Key(0,0)");
+        wait_cycles(40);
+        $display("  (0,0): code=0x%X (expect 0x0)", key_code);
+        release_key();
+        wait_cycles(10);
+        
+        // Top-right: (0,3)
+        wait_for_column(2'b11);
+        press_key(0, 3, "Key(0,3)");
+        wait_cycles(40);
+        $display("  (0,3): code=0x%X (expect 0x3)", key_code);
+        release_key();
+        wait_cycles(10);
+        
+        // Bottom-left: (3,0)
+        wait_for_column(2'b00);
+        press_key(3, 0, "Key(3,0)");
+        wait_cycles(40);
+        $display("  (3,0): code=0x%X (expect 0xC)", key_code);
+        release_key();
+        wait_cycles(10);
+        
+        // Bottom-right: (3,3)
+        wait_for_column(2'b11);
+        press_key(3, 3, "Key(3,3)");
+        wait_cycles(40);
+        $display("  (3,3): code=0x%X (expect 0xF)", key_code);
+        release_key();
+        wait_cycles(10);
+        
+        $display("  All corners recognized correctly\n");
+        
+        // ====================================================================
+        // Finish
+        // ====================================================================
+        
+        wait_cycles(50);
+        $display("========================================");
+        $display(" Simulation Complete");
+        $display("========================================\n");
+        $finish;
+    end
+
+    // ========================================================================
+    // Monitor: Print column cycling and key detection
+    // ========================================================================
+    
+    always @(posedge clk) begin
+        if (key_pressed && (cycle_count % 50 == 0)) begin
+            $display("[%5d] Monitor: key_pressed=%b, key_code=0x%X, kpad_col=%b",
+                     cycle_count, key_pressed, key_code, kpad_col);
+        end
+    end
+
+endmodule
+
+/**
+ * Integration Examples for Column Scanner Keypad Module
+ * 
+ * Demonstrates practical usage patterns for the keypad_column_scanner module
+ * with 7-segment display and UART logging.
+ */
+
+// ============================================================================
+// Example 1: Column Scanner + Dual 7-Segment Display
+// ============================================================================
+
+module keypad_with_display (
+    input  logic clk,
+    input  logic rst_n,
+    
+    // Keypad interface
+    output logic [3:0] kpad_col,
+    input  logic [3:0] kpad_row,
+    
+    // 7-Segment display outputs (common-cathode)
+    output logic [6:0] seg7_left,   // Second-to-last key
+    output logic [6:0] seg7_right   // Last key
+);
+
+    // Key detection signals
+    logic [3:0] key_code_current;
+    logic key_pressed_current;
+    
+    // Key history (maintain last two keys)
+    logic [3:0] key_history [0:1];  // [0]=last, [1]=second-to-last
+
+    // ========================================================================
+    // Instantiate Column Scanner
+    // ========================================================================
+    
+    keypad_column_scanner #(
+        .CLOCK_DIV(100),
+        .SAMPLE_DELAY(8)
+    ) scanner (
+        .clk(clk),
+        .rst_n(rst_n),
+        .kpad_col(kpad_col),
+        .kpad_row(kpad_row),
+        .key_code(key_code_current),
+        .key_pressed(key_pressed_current)
+    );
+
+    // ========================================================================
+    // Track Key Transitions (Only Record on Press, Not Hold)
+    // ========================================================================
+    
+    // Detect rising edge of key_pressed to avoid recording same key multiple times
+    logic key_pressed_prev;
+    logic key_press_edge;
+    
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            key_pressed_prev <= 1'b0;
+        end else begin
+            key_pressed_prev <= key_pressed_current;
+        end
+    end
+    
+    assign key_press_edge = key_pressed_current & ~key_pressed_prev;
+    
+    // ========================================================================
+    // Key History Shift Register
+    // ========================================================================
+    // Shift on new key press (rising edge of key_pressed)
+    
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            key_history[0] <= 4'h0;
+            key_history[1] <= 4'h0;
+        end else if (key_press_edge) begin
+            // New key detected: shift history
+            key_history[1] <= key_history[0];
+            key_history[0] <= key_code_current;
+        end
+    end
+
+    // ========================================================================
+    // 7-Segment Hex Encoder
+    // ========================================================================
+    
+    function logic [6:0] hex_to_7seg(logic [3:0] hex);
+        case (hex)
+            4'h0: hex_to_7seg = 7'b0111111;  // 0
+            4'h1: hex_to_7seg = 7'b0000110;  // 1
+            4'h2: hex_to_7seg = 7'b1011011;  // 2
+            4'h3: hex_to_7seg = 7'b1001111;  // 3
+            4'h4: hex_to_7seg = 7'b1100110;  // 4
+            4'h5: hex_to_7seg = 7'b1101101;  // 5
+            4'h6: hex_to_7seg = 7'b1111101;  // 6
+            4'h7: hex_to_7seg = 7'b0000111;  // 7
+            4'h8: hex_to_7seg = 7'b1111111;  // 8
+            4'h9: hex_to_7seg = 7'b1101111;  // 9
+            4'hA: hex_to_7seg = 7'b1110111;  // A
+            4'hB: hex_to_7seg = 7'b1111100;  // B
+            4'hC: hex_to_7seg = 7'b0111001;  // C
+            4'hD: hex_to_7seg = 7'b1011110;  // D
+            4'hE: hex_to_7seg = 7'b1111001;  // E
+            4'hF: hex_to_7seg = 7'b1110001;  // F
+            default: hex_to_7seg = 7'b0000000;
+        endcase
+    endfunction
+
+    // ========================================================================
+    // Assign Outputs
+    // ========================================================================
+    
+    assign seg7_left = hex_to_7seg(key_history[1]);   // Second-to-last
+    assign seg7_right = hex_to_7seg(key_history[0]);  // Last key
+
+endmodule
+
+// ============================================================================
+// Example 2: Column Scanner + Simple LED Indicator
+// ============================================================================
+
+module keypad_with_led (
+    input  logic clk,
+    input  logic rst_n,
+    
+    output logic [3:0] kpad_col,
+    input  logic [3:0] kpad_row,
+    
+    // LED outputs
+    output logic led_key_pressed,    // LED blinks when key pressed
+    output logic [3:0] led_key_code  // LEDs show key code bits
+);
+
+    logic [3:0] key_code_out;
+    logic key_pressed_out;
+
+    keypad_column_scanner #(
+        .CLOCK_DIV(100),
+        .SAMPLE_DELAY(8)
+    ) scanner (
+        .clk(clk),
+        .rst_n(rst_n),
+        .kpad_col(kpad_col),
+        .kpad_row(kpad_row),
+        .key_code(key_code_out),
+        .key_pressed(key_pressed_out)
+    );
+
+    // Simple assignments
+    assign led_key_pressed = key_pressed_out;
+    assign led_key_code = key_code_out;
+
+endmodule
+
+// ============================================================================
+// Example 3: Column Scanner + UART Debug Output
+// ============================================================================
+
+module keypad_with_uart (
+    input  logic clk,
+    input  logic rst_n,
+    
+    output logic [3:0] kpad_col,
+    input  logic [3:0] kpad_row,
+    
+    // UART interface (standard)
+    output logic uart_tx
+);
+
+    logic [3:0] key_code_out;
+    logic key_pressed_out;
+    logic key_pressed_prev;
+    logic key_press_edge;
+
+    keypad_column_scanner #(
+        .CLOCK_DIV(100),
+        .SAMPLE_DELAY(8)
+    ) scanner (
+        .clk(clk),
+        .rst_n(rst_n),
+        .kpad_col(kpad_col),
+        .kpad_row(kpad_row),
+        .key_code(key_code_out),
+        .key_pressed(key_pressed_out)
+    );
+
+    // Detect key press events
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            key_pressed_prev <= 1'b0;
+        end else begin
+            key_pressed_prev <= key_pressed_out;
+        end
+    end
+    
+    assign key_press_edge = key_pressed_out & ~key_pressed_prev;
+
+    // Simple UART transmitter (8N1, no parity)
+    // Note: This is a minimal example; real implementation requires baud rate generator
+    
+    logic [7:0] uart_data;
+    logic uart_send;
+    logic uart_busy;
+    
+    // Convert key code to ASCII hex character
+    always_comb begin
+        case (key_code_out)
+            4'h0: uart_data = "0";
+            4'h1: uart_data = "1";
+            4'h2: uart_data = "2";
+            4'h3: uart_data = "3";
+            4'h4: uart_data = "4";
+            4'h5: uart_data = "5";
+            4'h6: uart_data = "6";
+            4'h7: uart_data = "7";
+            4'h8: uart_data = "8";
+            4'h9: uart_data = "9";
+            4'hA: uart_data = "A";
+            4'hB: uart_data = "B";
+            4'hC: uart_data = "C";
+            4'hD: uart_data = "D";
+            4'hE: uart_data = "E";
+            4'hF: uart_data = "F";
+            default: uart_data = "?";
+        endcase
+    end
+    
+    // Trigger UART send on key press
+    assign uart_send = key_press_edge;
+
+    // Placeholder: Instantiate actual UART TX module here
+    // uart_tx_8n1 #(.BAUD_RATE(9600)) uart (
+    //     .clk(clk),
+    //     .rst_n(rst_n),
+    //     .data_in(uart_data),
+    //     .send(uart_send),
+    //     .tx(uart_tx),
+    //     .busy(uart_busy)
+    // );
+
+endmodule
+
+// ============================================================================
+// Example 4: Column Scanner with Edge Detection and Debouncing
+// ============================================================================
+// For applications requiring edge pulses (one-shot on press/release)
+
+module keypad_with_edges (
+    input  logic clk,
+    input  logic rst_n,
+    
+    output logic [3:0] kpad_col,
+    input  logic [3:0] kpad_row,
+    
+    output logic [3:0] key_code,
+    output logic key_press_pulse,   // One-cycle pulse on press
+    output logic key_release_pulse  // One-cycle pulse on release
+);
+
+    logic [3:0] key_code_out;
+    logic key_pressed_out;
+    logic key_pressed_r1, key_pressed_r2;
+
+    keypad_column_scanner #(
+        .CLOCK_DIV(100),
+        .SAMPLE_DELAY(8)
+    ) scanner (
+        .clk(clk),
+        .rst_n(rst_n),
+        .kpad_col(kpad_col),
+        .kpad_row(kpad_row),
+        .key_code(key_code_out),
+        .key_pressed(key_pressed_out)
+    );
+
+    // Edge detection pipeline
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            key_pressed_r1 <= 1'b0;
+            key_pressed_r2 <= 1'b0;
+        end else begin
+            key_pressed_r1 <= key_pressed_out;
+            key_pressed_r2 <= key_pressed_r1;
+        end
+    end
+
+    // Pulse generation
+    assign key_press_pulse = key_pressed_out & ~key_pressed_r1;      // Rising edge
+    assign key_release_pulse = key_pressed_r1 & ~key_pressed_r2;     // Falling edge
+    
+    assign key_code = key_code_out;
+
+endmodule
+
+// ============================================================================
+// Example 5: Column Scanner with Hysteresis (Multi-Key Lockout)
+// ============================================================================
+// Prevents glitches when multiple keys are pressed simultaneously
+
+module keypad_with_lockout (
+    input  logic clk,
+    input  logic rst_n,
+    
+    output logic [3:0] kpad_col,
+    input  logic [3:0] kpad_row,
+    
+    output logic [3:0] key_code,
+    output logic key_pressed,
+    output logic multiple_keys_detected  // Flag: >1 key pressed
+);
+
+    logic [3:0] key_code_out;
+    logic key_pressed_out;
+    logic [1:0] any_key_count;  // Count of active rows
+    
+    keypad_column_scanner #(
+        .CLOCK_DIV(100),
+        .SAMPLE_DELAY(8)
+    ) scanner (
+        .clk(clk),
+        .rst_n(rst_n),
+        .kpad_col(kpad_col),
+        .kpad_row(kpad_row),
+        .key_code(key_code_out),
+        .key_pressed(key_pressed_out)
+    );
+
+    // Count number of active rows (simple popcount)
+    always_comb begin
+        any_key_count = 2'b00;
+        if (!kpad_row[0]) any_key_count = any_key_count + 1'b1;
+        if (!kpad_row[1]) any_key_count = any_key_count + 1'b1;
+        if (!kpad_row[2]) any_key_count = any_key_count + 1'b1;
+        if (!kpad_row[3]) any_key_count = any_key_count + 1'b1;
+    end
+
+    // Outputs
+    assign key_code = key_code_out;
+    assign key_pressed = key_pressed_out;
+    assign multiple_keys_detected = (any_key_count >= 2'b10);
+
+endmodule
+
+// ============================================================================
+// Example 6: Column Scanner with Key History (Ring Buffer)
+// ============================================================================
+// Maintains history of last N key presses for sequence detection
+
+module keypad_with_history #(
+    parameter HISTORY_DEPTH = 8
+) (
+    input  logic clk,
+    input  logic rst_n,
+    
+    output logic [3:0] kpad_col,
+    input  logic [3:0] kpad_row,
+    
+    // History interface
+    output logic [3:0] current_key,
+    output logic key_detected,
+    output logic [(HISTORY_DEPTH*4-1):0] key_history,  // Ring buffer
+    output logic [3:0] history_ptr                       // Write pointer
+);
+
+    logic [3:0] key_code_out;
+    logic key_pressed_out;
+    logic key_pressed_prev;
+    logic key_press_edge;
+    
+    logic [HISTORY_DEPTH-1:0] [3:0] history_mem;
+    logic [3:0] write_ptr;
+
+    keypad_column_scanner #(
+        .CLOCK_DIV(100),
+        .SAMPLE_DELAY(8)
+    ) scanner (
+        .clk(clk),
+        .rst_n(rst_n),
+        .kpad_col(kpad_col),
+        .kpad_row(kpad_row),
+        .key_code(key_code_out),
+        .key_pressed(key_pressed_out)
+    );
+
+    // Edge detection
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            key_pressed_prev <= 1'b0;
+        end else begin
+            key_pressed_prev <= key_pressed_out;
+        end
+    end
+    
+    assign key_press_edge = key_pressed_out & ~key_pressed_prev;
+
+    // Ring buffer: record key on press
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            write_ptr <= 4'b0000;
+            for (int i = 0; i < HISTORY_DEPTH; i = i + 1) begin
+                history_mem[i] <= 4'h0;
+            end
+        end else if (key_press_edge) begin
+            history_mem[write_ptr] <= key_code_out;
+            write_ptr <= write_ptr + 1'b1;  // Wraps at HISTORY_DEPTH
+        end
+    end
+
+    // Pack history into flat array for output
+    always_comb begin
+        for (int i = 0; i < HISTORY_DEPTH; i = i + 1) begin
+            key_history[(i*4 + 3):(i*4)] = history_mem[i];
+        end
+    end
+
+    // Outputs
+    assign current_key = key_code_out;
+    assign key_detected = key_pressed_out;
+    assign history_ptr = write_ptr;
+
+endmodule
+```
+
+</details>
+
+<details>
+<summary>User Prompt 3</summary>
+
+Target device: Lattice iCE40 UP5K FPGA with internal oscillator as the root clock source.
+
+Write a top‑level SystemVerilog module that instantiates the scanner and one‑shot modules, shifts the last two keys (older ← most recent; most recent ← new), and drives a multiplexed two‑digit seven‑segment display. Requirements:
+
+Update the displayed digits only when a new key is registered.
+Ensure equal apparent brightness and no visible flicker.
+Keep all logic synthesizable and synchronous; use idiomatic SystemVerilog constructs.
+Provide any small clock‑enable or divider logic you need. You can also assume that a sevenSegment module exists that takes a 4 bit input and outputs the 7 segments.
+
+</details>
+
+<details>
+<summary>AI Response 3</summary>
+
+```
+/**
+ * Keypad System with Multiplexed 7-Segment Display
+ * 
+ * Top-level module for iCE40 UP5K with internal oscillator
+ * 
+ * Functionality:
+ *   - Scans 4×4 matrix keypad (column-driven)
+ *   - Debounces with one-shot pulse on new valid key
+ *   - Maintains 2-entry key history (older ← recent → new)
+ *   - Drives dual 7-segment display (multiplexed, 50% duty cycle per digit)
+ *   - Updates display only on new key registration
+ *   - Ensures equal brightness via PWM/time-sharing
+ *   - No visible flicker (refresh >60 Hz perceived)
+ *
+ * Target: Lattice iCE40 UP5K (internal oscillator as root clock)
+ */
+
+module keypad_display_system (
+    // System signals
+    input  logic clk_in,           // Internal oscillator (12 MHz typical)
+    input  logic rst_n,            // Active-low async reset
+    
+    // Keypad matrix interface
+    output logic [3:0] kpad_col,   // Column drivers (active-low)
+    input  logic [3:0] kpad_row,   // Row sensors (active-low)
+    
+    // 7-Segment display interface (common-cathode assumed)
+    output logic [6:0] seg7_left,  // Left digit segments (A-G)
+    output logic [6:0] seg7_right, // Right digit segments (A-G)
+    output logic seg7_left_en,     // Left digit enable (common cathode GND)
+    output logic seg7_right_en     // Right digit enable (common cathode GND)
+);
+
+    // ========================================================================
+    // Type Definitions
+    // ========================================================================
+    
+    typedef enum logic [1:0] {
+        MSEL_LEFT,         // Multiplexer: display left digit
+        MSEL_RIGHT,        // Multiplexer: display right digit
+        MSEL_BLANK         // Multiplexer: blank (transition)
+    } mux_state_t;
+
+    // ========================================================================
+    // Clock Generation (Derived from Internal Oscillator)
+    // ========================================================================
+    
+    // Assume internal oscillator runs at 12 MHz
+    // Generate slower clocks for keypad scanning and display multiplexing
+    
+    logic clk_12mhz;
+    logic clk_1mhz;        // For keypad scanner (slower, cleaner scanning)
+    logic clk_10khz;       // For display multiplexer (flicker-free)
+    
+    // Dividers
+    logic [3:0] div_12to1_counter;   // Divide 12 MHz → 1 MHz (÷12)
+    logic div_1mhz_pulse;
+    
+    logic [9:0] div_1mto10k_counter; // Divide 1 MHz → 10 kHz (÷100)
+    logic div_10khz_pulse;
+    
+    // 12 MHz → 1 MHz divider
+    always_ff @(posedge clk_in or negedge rst_n) begin
+        if (!rst_n) begin
+            div_12to1_counter <= '0;
+            div_1mhz_pulse <= 1'b0;
+        end else begin
+            if (div_12to1_counter == 4'd11) begin
+                div_12to1_counter <= '0;
+                div_1mhz_pulse <= 1'b1;
+            end else begin
+                div_12to1_counter <= div_12to1_counter + 1'b1;
+                div_1mhz_pulse <= 1'b0;
+            end
+        end
+    end
+    
+    // 1 MHz → 10 kHz divider (for display refresh)
+    always_ff @(posedge clk_in or negedge rst_n) begin
+        if (!rst_n) begin
+            div_1mto10k_counter <= '0;
+            div_10khz_pulse <= 1'b0;
+        end else begin
+            if (div_1mto10k_counter == 10'd99) begin
+                div_1mto10k_counter <= '0;
+                div_10khz_pulse <= 1'b1;
+            end else begin
+                div_1mto10k_counter <= div_1mto10k_counter + 1'b1;
+                div_10khz_pulse <= 1'b0;
+            end
+        end
+    end
+    
+    // Clock enables for modules
+    // Scanner runs on every 12 MHz clock (inherent prescaler in module)
+    // Display multiplexer runs on 10 kHz base (100 µs period, 50 µs per digit)
+    
+    assign clk_12mhz = clk_in;
+
+    // ========================================================================
+    // Keypad One-Shot Scanner (combines column scanner + debouncer)
+    // ========================================================================
+    
+    logic [3:0] key_code_scanner;
+    logic new_key_pulse;           // One-cycle pulse on valid key press
+    
+    keypad_oneshot #(
+        .DEBOUNCE_WIDTH(12)        // ~4 ms debounce @ 1 MHz
+    ) scanner (
+        .clk(clk_in),              // Feed 12 MHz directly; module has internal prescaler
+        .rst_n(rst_n),
+        .kpad_row(kpad_row),
+        .kpad_col(kpad_col),
+        .new_key_pulse(new_key_pulse),
+        .key_code(key_code_scanner)
+    );
+
+    // ========================================================================
+    // Key History Buffer (Maintains Last 2 Keys)
+    // ========================================================================
+    
+    logic [3:0] key_history [0:1];  // [0] = most recent, [1] = older
+    
+    always_ff @(posedge clk_in or negedge rst_n) begin
+        if (!rst_n) begin
+            key_history[0] <= 4'h0;
+            key_history[1] <= 4'h0;
+        end else if (new_key_pulse) begin
+            // New key detected: shift history
+            key_history[1] <= key_history[0];  // Recent becomes older
+            key_history[0] <= key_code_scanner;  // New becomes most recent
+        end
+    end
+
+    // ========================================================================
+    // 7-Segment Hex Encoder (Combinational)
+    // ========================================================================
+    
+    function logic [6:0] hex_to_7seg(logic [3:0] hex);
+        case (hex)
+            4'h0: hex_to_7seg = 7'b0111111;  // 0
+            4'h1: hex_to_7seg = 7'b0000110;  // 1
+            4'h2: hex_to_7seg = 7'b1011011;  // 2
+            4'h3: hex_to_7seg = 7'b1001111;  // 3
+            4'h4: hex_to_7seg = 7'b1100110;  // 4
+            4'h5: hex_to_7seg = 7'b1101101;  // 5
+            4'h6: hex_to_7seg = 7'b1111101;  // 6
+            4'h7: hex_to_7seg = 7'b0000111;  // 7
+            4'h8: hex_to_7seg = 7'b1111111;  // 8
+            4'h9: hex_to_7seg = 7'b1101111;  // 9
+            4'hA: hex_to_7seg = 7'b1110111;  // A
+            4'hB: hex_to_7seg = 7'b1111100;  // B
+            4'hC: hex_to_7seg = 7'b0111001;  // C
+            4'hD: hex_to_7seg = 7'b1011110;  // D
+            4'hE: hex_to_7seg = 7'b1111001;  // E
+            4'hF: hex_to_7seg = 7'b1110001;  // F
+            default: hex_to_7seg = 7'b0000000;
+        endcase
+    endfunction
+
+    // ========================================================================
+    // Display Multiplexer State Machine
+    // ========================================================================
+    
+    // Multiplexes between left and right digit with proper timing
+    // Refresh rate: 10 kHz base → 50 µs/digit → ~100 Hz perceived (flicker-free)
+    
+    mux_state_t mux_state, next_mux_state;
+    logic [6:0] seg7_current;
+    logic seg7_enable_current;
+    
+    always_ff @(posedge clk_in or negedge rst_n) begin
+        if (!rst_n) begin
+            mux_state <= MSEL_LEFT;
+        end else if (div_10khz_pulse) begin
+            mux_state <= next_mux_state;
+        end
+    end
+    
+    always_comb begin
+        next_mux_state = mux_state;
+        seg7_current = 7'b0000000;
+        seg7_enable_current = 1'b0;
+        
+        case (mux_state)
+            MSEL_LEFT: begin
+                // Display left digit (older key)
+                seg7_current = hex_to_7seg(key_history[1]);
+                seg7_enable_current = 1'b1;
+                next_mux_state = MSEL_RIGHT;
+            end
+            MSEL_RIGHT: begin
+                // Display right digit (most recent key)
+                seg7_current = hex_to_7seg(key_history[0]);
+                seg7_enable_current = 1'b1;
+                next_mux_state = MSEL_LEFT;
+            end
+            default: begin
+                // Should never reach here, but include for safety
+                next_mux_state = MSEL_LEFT;
+            end
+        endcase
+    end
+
+    // ========================================================================
+    // Display Output Mux (Route Current Digit to Display Pins)
+    // ========================================================================
+    
+    always_ff @(posedge clk_in or negedge rst_n) begin
+        if (!rst_n) begin
+            seg7_left <= '0;
+            seg7_right <= '0;
+            seg7_left_en <= 1'b0;
+            seg7_right_en <= 1'b0;
+        end else if (div_10khz_pulse) begin
+            // Update outputs synchronized to multiplexer state
+            case (mux_state)
+                MSEL_LEFT: begin
+                    seg7_left <= seg7_current;
+                    seg7_left_en <= seg7_enable_current;
+                    seg7_right_en <= 1'b0;  // Disable right digit
+                end
+                MSEL_RIGHT: begin
+                    seg7_right <= seg7_current;
+                    seg7_right_en <= seg7_enable_current;
+                    seg7_left_en <= 1'b0;  // Disable left digit
+                end
+                default: begin
+                    seg7_left_en <= 1'b0;
+                    seg7_right_en <= 1'b0;
+                end
+            endcase
+        end
+    end
+
+endmodule
+
+/**
+ * Testbench for keypad_display_system Top-Level Module
+ * 
+ * Tests:
+ *   1. Initialization and reset
+ *   2. Key history tracking (shift on new key)
+ *   3. Display multiplexing (alternating left/right)
+ *   4. Key code to 7-segment encoding
+ *   5. No updates until new key pressed
+ *   6. Flicker-free operation (continuous multiplexing)
+ */
+
+`timescale 1ns / 1ns
+
+module keypad_display_system_tb;
+
+    // ========================================================================
+    // Testbench Signals
+    // ========================================================================
+    
+    logic clk_in;
+    logic rst_n;
+    
+    logic [3:0] kpad_col;
+    logic [3:0] kpad_row;
+    
+    logic [6:0] seg7_left;
+    logic [6:0] seg7_right;
+    logic seg7_left_en;
+    logic seg7_right_en;
+    
+    // Monitoring signals
+    logic [31:0] cycle_count;
+    logic [31:0] key_press_count;
+
+    // ========================================================================
+    // DUT Instantiation
+    // ========================================================================
+    
+    keypad_display_system dut (
+        .clk_in(clk_in),
+        .rst_n(rst_n),
+        .kpad_col(kpad_col),
+        .kpad_row(kpad_row),
+        .seg7_left(seg7_left),
+        .seg7_right(seg7_right),
+        .seg7_left_en(seg7_left_en),
+        .seg7_right_en(seg7_right_en)
+    );
+
+    // ========================================================================
+    // Clock Generation (12 MHz = 83.33 ns period)
+    // ========================================================================
+    
+    always begin
+        #41.67 clk_in = ~clk_in;  // 12 MHz clock
+    end
+
+    // ========================================================================
+    // Cycle Counter
+    // ========================================================================
+    
+    always_ff @(posedge clk_in) begin
+        cycle_count <= cycle_count + 1'b1;
+    end
+
+    // ========================================================================
+    // Test Tasks
+    // ========================================================================
+    
+    task press_key(input logic [1:0] row, input logic [1:0] col, input string desc);
+        kpad_row = 4'b1111;
+        kpad_row[row] = 1'b0;
+        #1 $display("[%7d] Press Key(%d,%d): %s → Code 0x%X",
+                    cycle_count, row, col, desc, {row, col});
+    endtask
+    
+    task release_key();
+        kpad_row = 4'b1111;
+        #1 $display("[%7d] Release all keys", cycle_count);
+    endtask
+    
+    task wait_cycles(input integer n);
+        repeat(n) @(posedge clk_in);
+    endtask
+    
+    task wait_ms(input integer ms);
+        repeat(ms * 12000) @(posedge clk_in);  // 12M cycles per millisecond
+    endtask
+
+    // ========================================================================
+    // 7-Segment to Hex Decoder (for display verification)
+    // ========================================================================
+    
+    function logic [3:0] seg7_to_hex(logic [6:0] seg);
+        case (seg)
+            7'b0111111: seg7_to_hex = 4'h0;
+            7'b0000110: seg7_to_hex = 4'h1;
+            7'b1011011: seg7_to_hex = 4'h2;
+            7'b1001111: seg7_to_hex = 4'h3;
+            7'b1100110: seg7_to_hex = 4'h4;
+            7'b1101101: seg7_to_hex = 4'h5;
+            7'b1111101: seg7_to_hex = 4'h6;
+            7'b0000111: seg7_to_hex = 4'h7;
+            7'b1111111: seg7_to_hex = 4'h8;
+            7'b1101111: seg7_to_hex = 4'h9;
+            7'b1110111: seg7_to_hex = 4'hA;
+            7'b1111100: seg7_to_hex = 4'hB;
+            7'b0111001: seg7_to_hex = 4'hC;
+            7'b1011110: seg7_to_hex = 4'hD;
+            7'b1111001: seg7_to_hex = 4'hE;
+            7'b1110001: seg7_to_hex = 4'hF;
+            default: seg7_to_hex = 4'hX;
+        endcase
+    endfunction
+
+    // ========================================================================
+    // Main Test Sequence
+    // ========================================================================
+    
+    initial begin
+        // Initialize
+        clk_in = 1'b0;
+        rst_n = 1'b1;
+        kpad_row = 4'b1111;
+        cycle_count = 0;
+        key_press_count = 0;
+        
+        $display("\n========================================");
+        $display(" Keypad Display System Testbench");
+        $display("========================================\n");
+        
+        // ====================================================================
+        // Test 1: Reset and Initialization
+        // ====================================================================
+        
+        $display("TEST 1: Reset and Initialization");
+        rst_n = 1'b0;
+        wait_cycles(100);
+        rst_n = 1'b1;
+        wait_cycles(100);
+        
+        $display("  Display should show 0x00 (both digits blank/zero)");
+        $display("  seg7_left_en and seg7_right_en should alternate\n");
+        
+        // ====================================================================
+        // Test 2: Press First Key (0x05)
+        // ====================================================================
+        
+        $display("TEST 2: Press First Key (Row 1, Col 1) → 0x05");
+        wait_ms(10);  // Let system settle
+        
+        press_key(1, 1, "Key 5");
+        wait_ms(10);  // Wait for debounce
+        release_key();
+        wait_ms(20);
+        
+        $display("  Expected display: Left=0x0, Right=0x5");
+        $display("  Left:  seg7=%b, en=%b → 0x%X", seg7_left, seg7_left_en, seg7_to_hex(seg7_left));
+        $display("  Right: seg7=%b, en=%b → 0x%X\n", seg7_right, seg7_right_en, seg7_to_hex(seg7_right));
+        
+        // ====================================================================
+        // Test 3: Press Second Key (0x09)
+        // ====================================================================
+        
+        $display("TEST 3: Press Second Key (Row 2, Col 1) → 0x09");
+        wait_ms(10);
+        
+        press_key(2, 1, "Key 9");
+        wait_ms(10);
+        release_key();
+        wait_ms(20);
+        
+        $display("  Expected display: Left=0x5 (shifted), Right=0x9 (new)");
+        $display("  Left:  seg7=%b, en=%b → 0x%X", seg7_left, seg7_left_en, seg7_to_hex(seg7_left));
+        $display("  Right: seg7=%b, en=%b → 0x%X\n", seg7_right, seg7_right_en, seg7_to_hex(seg7_right));
+        
+        // ====================================================================
+        // Test 4: Press Third Key (0x0B)
+        // ====================================================================
+        
+        $display("TEST 4: Press Third Key (Row 2, Col 3) → 0x0B");
+        wait_ms(10);
+        
+        press_key(2, 3, "Key C");
+        wait_ms(10);
+        release_key();
+        wait_ms(20);
+        
+        $display("  Expected display: Left=0x9 (shifted), Right=0xB (new)");
+        $display("  Left:  seg7=%b, en=%b → 0x%X", seg7_left, seg7_left_en, seg7_to_hex(seg7_left));
+        $display("  Right: seg7=%b, en=%b → 0x%X\n", seg7_right, seg7_right_en, seg7_to_hex(seg7_right));
+        
+        // ====================================================================
+        // Test 5: Verify No Update Without Key Press
+        // ====================================================================
+        
+        $display("TEST 5: Monitor for Stability (No Update Without Key)");
+        logic [6:0] seg7_left_prev, seg7_right_prev;
+        seg7_left_prev = seg7_left;
+        seg7_right_prev = seg7_right;
+        
+        wait_ms(50);  // Wait 50 ms with no key press
+        
+        if ((seg7_left == seg7_left_prev) && (seg7_right == seg7_right_prev)) begin
+            $display("  ✓ Display stable: No update without new key press");
+        end else begin
+            $display("  ✗ ERROR: Display changed without key press!");
+        end
+        $display("");
+        
+        // ====================================================================
+        // Test 6: Multiplexing Pattern Verification
+        // ====================================================================
+        
+        $display("TEST 6: Multiplexing Pattern (Should Alternate at ~10 kHz)");
+        
+        integer mux_left_count = 0;
+        integer mux_right_count = 0;
+        logic prev_left_en = 1'b0;
+        logic prev_right_en = 1'b0;
+        
+        wait_ms(2);  // Monitor for 2 ms
+        
+        // Count transitions (rough check; exact timing depends on simulation speed)
+        for (int i = 0; i < 10000; i = i + 1) begin
+            @(posedge clk_in);
+            if (seg7_left_en && !prev_left_en) mux_left_count = mux_left_count + 1;
+            if (seg7_right_en && !prev_right_en) mux_right_count = mux_right_count + 1;
+            prev_left_en = seg7_left_en;
+            prev_right_en = seg7_right_en;
+        end
+        
+        $display("  Left digit enable transitions: %d (expect ~10)", mux_left_count);
+        $display("  Right digit enable transitions: %d (expect ~10)", mux_right_count);
+        $display("  Expected: Should see alternating pattern\n");
+        
+        // ====================================================================
+        // Test 7: All 16 Keys (Verify Encoding)
+        // ====================================================================
+        
+        $display("TEST 7: All 16 Keys Encoding Verification");
+        
+        for (int test_key = 0; test_key < 16; test_key = test_key + 1) begin
+            logic [1:0] test_row = test_key[3:2];
+            logic [1:0] test_col = test_key[1:0];
+            
+            press_key(test_row, test_col, "");
+            wait_ms(10);
+            release_key();
+            wait_ms(10);
+            
+            // Display should now show: [prev_key][test_key]
+            logic [3:0] displayed_right = seg7_to_hex(seg7_right);
+            if (displayed_right == test_key) begin
+                $display("  ✓ Key 0x%X displayed correctly", test_key);
+            end else begin
+                $display("  ✗ Key 0x%X: expected display 0x%X, got 0x%X",
+                         test_key, test_key, displayed_right);
+            end
+        end
+        $display("");
+        
+        // ====================================================================
+        // Test 8: Rapid Key Presses (Stress Test)
+        // ====================================================================
+        
+        $display("TEST 8: Rapid Key Presses");
+        
+        for (int i = 0; i < 5; i = i + 1) begin
+            press_key(i % 4, (i + 1) % 4, "");
+            wait_ms(3);
+            release_key();
+            wait_ms(3);
+        end
+        
+        $display("  ✓ Completed 5 rapid key presses without errors\n");
+        
+        // ====================================================================
+        // Finish
+        // ====================================================================
+        
+        wait_ms(100);
+        $display("========================================");
+        $display(" Simulation Complete");
+        $display("========================================\n");
+        $finish;
+    end
+
+    // ========================================================================
+    // Monitor: Print display state periodically
+    // ========================================================================
+    
+    always @(posedge clk_in) begin
+        if ((cycle_count % 600000) == 0 && cycle_count > 0) begin
+            // Print every 50 ms (600k cycles @ 12 MHz)
+            $display("[%7d] Display: L=0x%X %b | R=0x%X %b | L_en=%b R_en=%b",
+                     cycle_count,
+                     seg7_to_hex(seg7_left), seg7_left,
+                     seg7_to_hex(seg7_right), seg7_right,
+                     seg7_left_en, seg7_right_en);
+        end
+    end
+
+endmodule
+```
+
+</details>
+
+### Summary
+
+### Summary
+
+The monolithic prompt (A) gave a cleaner module split than I expected, but the design underneath was wrong in that it generated derived clocks by toggling registers instead of using clock enables, registered a key on release rather than press, left a latch in the `key_code` `always_comb`, and had no synchronizer or reset. The modular prompts (B) produced much more text and much less design in comparison. B's scanner did include a two-stage synchronizer and a settle delay before sampling, which A never considered. My conclusion is that decomposing the prompts improves the pieces but not the whole integration. Next time I would give it my actual module headers and testbenches as part of my prompt and run every response through synthesis and a testbench before reading its documentation.

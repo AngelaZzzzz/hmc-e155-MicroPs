@@ -1,6 +1,6 @@
 // Author:	Angela Zheng
 // Email: 	angzheng@hmc.edu
-// Date: 	9/26/2026
+// Date: 	9/21/2026
 //
 // Purpose: Testbench for digit_register. Checks reset to 00, that a key_valid strobe
 //			shifts the old right digit to the left and puts the new key on the right,
