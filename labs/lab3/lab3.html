@@ -155,7 +155,6 @@ ul.task-list li input[type="checkbox"] {
   <ul class="collapse">
   <li><a href="#ai-chat-transcript" id="toc-ai-chat-transcript" class="nav-link" data-scroll-target="#ai-chat-transcript">AI Chat Transcript</a></li>
   <li><a href="#summary" id="toc-summary" class="nav-link" data-scroll-target="#summary">Summary</a></li>
-  <li><a href="#summary-1" id="toc-summary-1" class="nav-link" data-scroll-target="#summary-1">Summary</a></li>
   </ul></li>
   </ul>
 </nav>
@@ -3151,9 +3150,6 @@ endmodule</code></pre>
 </section>
 <section id="summary" class="level3">
 <h3 class="anchored" data-anchor-id="summary">Summary</h3>
-</section>
-<section id="summary-1" class="level3">
-<h3 class="anchored" data-anchor-id="summary-1">Summary</h3>
 <p>The monolithic prompt (A) gave a cleaner module split than I expected, but the design underneath was wrong in that it generated derived clocks by toggling registers instead of using clock enables, registered a key on release rather than press, left a latch in the <code>key_code</code> <code>always_comb</code>, and had no synchronizer or reset. The modular prompts (B) produced much more text and much less design in comparison. B’s scanner did include a two-stage synchronizer and a settle delay before sampling, which A never considered. My conclusion is that decomposing the prompts improves the pieces but not the whole integration. Next time I would give it my actual module headers and testbenches as part of my prompt and run every response through synthesis and a testbench before reading its documentation.</p>
 
 
