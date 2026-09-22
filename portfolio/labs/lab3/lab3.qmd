@@ -2881,6 +2881,4 @@ endmodule
 
 ### Summary
 
-### Summary
-
 The monolithic prompt (A) gave a cleaner module split than I expected, but the design underneath was wrong in that it generated derived clocks by toggling registers instead of using clock enables, registered a key on release rather than press, left a latch in the `key_code` `always_comb`, and had no synchronizer or reset. The modular prompts (B) produced much more text and much less design in comparison. B's scanner did include a two-stage synchronizer and a settle delay before sampling, which A never considered. My conclusion is that decomposing the prompts improves the pieces but not the whole integration. Next time I would give it my actual module headers and testbenches as part of my prompt and run every response through synthesis and a testbench before reading its documentation.
