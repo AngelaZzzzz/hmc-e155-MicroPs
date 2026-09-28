@@ -18,6 +18,9 @@
 // Base addresses
 #define TIM16_BASE (0x40014400UL) // base address of TIM16
 
+// Prescaler for TIM16
+#define TIM16_PSC_VAL 15
+
 typedef struct
 {
   __IO uint32_t CR1;        // Address offset: 0x00
@@ -27,7 +30,7 @@ typedef struct
   __IO uint32_t SR;         // Address offset: 0x10
   __IO uint32_t EGR;        // Address offset: 0x14
   __IO uint32_t CCMR1_out;  // Address offset: 0x18
-  __IO uint32_t CCRM1_in;   // Address offset: 0x1C
+  __IO uint32_t CCMR1_in;   // Address offset: 0x1C
   __IO uint32_t CCER;       // Address offset: 0x20
   __IO uint32_t CNT;        // Address offset: 0x24
   __IO uint32_t PSC;        // Address offset: 0x28
