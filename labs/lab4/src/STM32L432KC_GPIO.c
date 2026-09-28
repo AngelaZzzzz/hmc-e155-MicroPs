@@ -1,6 +1,3 @@
-// Angela Zheng
-// 9/26/2026
-//
 // STM32L432KC_GPIO.c
 // Source code for GPIO functions
 
