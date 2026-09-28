@@ -4,6 +4,12 @@
 // lab4_az.c
 // Fur Elise, E155 Lab 4
 
+#include "STM32L432KC_FLASH.h"
+#include "STM32L432KC_GPIO.h"
+#include "STM32L432KC_RCC.h"
+#include "STM32L432KC_TIM16.h"
+#include "STM32L432KC_TIM6.h"
+
 // Pitch in Hz, duration in ms
 const int notes[][2] = {
 {659,	125},
@@ -117,6 +123,31 @@ const int notes[][2] = {
 {  0,	0}};
 
 int main(void) {
+    // initialize everything
+	configureFlash();
+    configureClock();
+    configureTIM6();
+    configureTIM16();
 	
-	
+    // enable GPIOA clock
+    RCC->AHB2ENR |= (1 << 0);
+
+    // set pin 6 to mode AF
+    pinMode(6, GPIO_ALT);
+
+    // selects TIM16 (AF14) for pin 6 by setting bits 27:24 to 1110
+    GPIO->AFRL |= (14 << 24);
+
+    // play fur elise
+    int fur_elise_length = sizeof(notes) / sizeof (notes[0]);
+    for (int i = 0; i < fur_elise_length; i++) {
+        if (notes[i][1] == 0) {
+            frequency(0);
+        } else {
+            frequency(notes[i][0]);
+            duration(notes[i][1]);
+        }
+    }
+
+    // play happy birthday
 }
