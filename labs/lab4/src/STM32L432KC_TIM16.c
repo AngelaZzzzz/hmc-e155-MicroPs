@@ -9,7 +9,7 @@
 
 void configureTIM16(void) {
     // enable TIM16 in APB2
-    RCC->APB2ENR = (1 << 17);
+    RCC->APB2ENR |= (1 << 17);
 
     // set prescaler
     TIM16->PSC = TIM16_PSC_VAL;
