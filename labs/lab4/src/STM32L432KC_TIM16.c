@@ -7,7 +7,7 @@
 #include "STM32L432KC_RCC.h"
 #include "STM32L432KC_TIM16.h"
 
-void configureTIM16() {
+void configureTIM16(void) {
     // enable TIM16 in APB2
     RCC->APB2ENR = (1 << 17);
 
@@ -23,6 +23,12 @@ void configureTIM16() {
     // enable the preload register
     TIM16->CCMR1_out |= (1 << 3);
 
+    // sets to output
+    TIM16->CCMR1_out &= ~(0b11 << 0);
+
+    // enable the auto-reload preload register
+    TIM16->CR1 |= (1 << 7);
+
     // set PWM capture/compare 1 output polarity to active high, and enable output
     TIM16->CCER &= ~(1 << 1);
     TIM16->CCER |= (1 << 0);
@@ -30,11 +36,8 @@ void configureTIM16() {
     // enable outputs
     TIM16->BDTR |= (1 << 15);
 
-    // enable the auto-reload preload register
-    TIM16->CR1 |= (1 << 7);
-
     // initialize all registers by setting UG in EGR
-    TIM16->EGR |= (1 << 0); 
+    TIM16->EGR |= (1 << 0);
 
     // enable counter
     TIM16->CR1 |= (1 << 0);
@@ -47,11 +50,8 @@ void frequency(int hz) {
     if (hz == 0) {
         arr = 0;
     } else {
-        arr = 500000 / hz - 1;
+        arr = (80000000 / (TIM16_PSC_VAL + 1)) / hz - 1;
     }
-
-    // reset clock to avoid new arr being lower than previous
-    TIM16->CNT = 0;
 
     // set ARR
     TIM16->ARR = arr;
@@ -61,4 +61,7 @@ void frequency(int hz) {
 
     // reset all registers
     TIM16->EGR |= (1 << 0);
+
+    // reset clock to avoid new arr being lower than previous
+    TIM16->CNT = 0;
 }

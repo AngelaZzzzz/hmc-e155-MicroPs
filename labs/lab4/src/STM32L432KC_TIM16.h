@@ -18,7 +18,7 @@
 // Base addresses
 #define TIM16_BASE (0x40014400UL) // base address of TIM16
 
-// Prescaler for TIM16
+// Prescaler for TIM16 to set clk to 5MHz
 #define TIM16_PSC_VAL 15
 
 typedef struct

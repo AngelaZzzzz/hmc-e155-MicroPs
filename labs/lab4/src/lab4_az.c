@@ -11,7 +11,7 @@
 #include "STM32L432KC_TIM6.h"
 
 // Pitch in Hz, duration in ms
-const int notes[][2] = {
+const int fur_elise[][2] = {
 {659,	125},
 {623,	125},
 {659,	125},
@@ -122,9 +122,66 @@ const int notes[][2] = {
 {440,	500},
 {  0,	0}};
 
+const int summer[][2] = {
+{740, 250}, 
+{659, 250}, 
+{587, 250}, 
+{440, 500}, 
+{494, 250}, 
+{554, 250}, 
+{587, 750}, 
+{ 0, 250}, 
+{659, 250}, 
+{740, 250}, 
+{784, 250}, 
+{740, 500}, 
+{659, 250}, 
+{587, 250}, 
+{659, 750}, 
+{ 0, 250}, 
+{880, 250}, 
+{784, 250}, 
+{740, 250}, 
+{659, 500}, 
+{587, 250}, 
+{494, 250}, 
+{554, 500}, 
+{587, 250}, 
+{659, 250}, 
+{740, 375}, 
+{659, 125}, 
+{587, 250}, 
+{554, 250}, 
+{587, 1000}, 
+{ 0, 500}, 
+{494, 250}, 
+{587, 250}, 
+{784, 500}, 
+{740, 250}, 
+{659, 250}, 
+{740, 500}, 
+{880, 500}, 
+{784, 250}, 
+{740, 250}, 
+{659, 250}, 
+{587, 250}, 
+{554, 250}, 
+{659, 250}, 
+{587, 1000}, 
+{ 0, 500}, 
+{440, 250}, 
+{587, 250}, 
+{740, 250}, 
+{659, 500}, 
+{587, 1250}, 
+{ 0, 0}
+};
+
+
+
 int main(void) {
     // initialize everything
-	configureFlash();
+    configureFlash();
     configureClock();
     configureTIM6();
     configureTIM16();
@@ -136,18 +193,20 @@ int main(void) {
     pinMode(6, GPIO_ALT);
 
     // selects TIM16 (AF14) for pin 6 by setting bits 27:24 to 1110
-    GPIO->AFRL |= (14 << 24);
+    GPIO->AFRL &= ~(0b1111 << 24);
+    GPIO->AFRL |= (0b1110 << 24);
 
     // play fur elise
-    int fur_elise_length = sizeof(notes) / sizeof (notes[0]);
+    int fur_elise_length = sizeof(fur_elise) / sizeof(fur_elise[0]);
     for (int i = 0; i < fur_elise_length; i++) {
-        if (notes[i][1] == 0) {
-            frequency(0);
-        } else {
-            frequency(notes[i][0]);
-            duration(notes[i][1]);
-        }
+        frequency(fur_elise[i][0]);
+        duration(fur_elise[i][1]);
     }
 
-    // play happy birthday
+    // play summer
+    int summer_length = sizeof(summer) / sizeof(summer[0]);
+    for (int i = 0; i < summer_length; i++) {
+        frequency(summer[i][0]);
+        duration(summer[i][1]);
+    }
 }
