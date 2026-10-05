@@ -13,8 +13,8 @@
 // Custom defines
 ///////////////////////////////////////////////////////////////////////////////
 
-#define ENCODER_PIN_9 PA9
-#define ENCODER_PIN_10 PA10
+#define ENCODER_PIN_A PA8
+#define ENCODER_PIN_B PA12
 #define PPR 408             // Pulses Per Rev
 #define DELAY_TIM TIM16
 
