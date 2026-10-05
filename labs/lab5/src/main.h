@@ -1,7 +1,7 @@
 // main.h
-// Josh Brake
-// jbrake@hmc.edu
-// 10/31/22
+// Angela Zheng
+// angzheng@hmc.edu
+// 10/4/2026
 
 #ifndef MAIN_H
 #define MAIN_H
@@ -16,7 +16,15 @@
 #define ENCODER_PIN_9 PA9
 #define ENCODER_PIN_10 PA10
 #define PPR 408             // Pulses Per Rev
-#define CPR (4 * PPR)       // Counts Per Rev
 #define DELAY_TIM TIM16
+
+///////////////////////////////////////////////////////////////////////////////
+// Function prototypes
+///////////////////////////////////////////////////////////////////////////////
+
+void readPins(void);
+void displayVelocity(void);
+void EXTI9_5_IRQHandler(void);
+void EXTI15_10_IRQHandler(void);
 
 #endif // MAIN_H
