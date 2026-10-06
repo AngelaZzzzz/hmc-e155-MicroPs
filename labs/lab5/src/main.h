@@ -17,7 +17,6 @@
 #define ENCODER_PIN_B PA12
 #define PPR 408             // Pulses Per Rev
 #define DELAY_TIM TIM16
-// #define POLLING_PIN PA6
 
 ///////////////////////////////////////////////////////////////////////////////
 // Function prototypes

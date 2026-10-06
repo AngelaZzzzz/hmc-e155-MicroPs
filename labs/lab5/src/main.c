@@ -108,11 +108,6 @@ int main(void) {
     NVIC->ISER[0] |= (1 << 23);
     NVIC->ISER[1] |= (1 << 8);
 
-    // while(1){
-    //     GPIOA->ODR ^= (1 << gpioPinOffset(POLLING_PIN));
-    //     printf("A: %d, B: %d\n", digitalRead(ENCODER_PIN_A), digitalRead(ENCODER_PIN_B));
-    //     printf("A: %d, B: %d\n", digitalRead(ENCODER_PIN_A), digitalRead(ENCODER_PIN_B));
-    // }
     while(1){
         delay_millis(DELAY_TIM, 1000);  // 1s delay
         displayVelocity();
