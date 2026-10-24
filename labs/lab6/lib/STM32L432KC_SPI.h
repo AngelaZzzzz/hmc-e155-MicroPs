@@ -1,14 +1,24 @@
 // STM32L432KC_SPI.h
-// TODO: <YOUR NAME>
-// TODO: <YOUR EMAIL>
-// TODO: <DATE>
-// TODO: <SHORT DESCRIPTION OF WHAT THIS FILE DOES>
+// Angela Zheng
+// angzheng@hmc.edu
+// 10/22/2026
+// Header for the SPI1 driver.
 
 #ifndef STM32L4_SPI_H
 #define STM32L4_SPI_H
 
 #include <stdint.h>
 #include <stm32l432xx.h>
+
+///////////////////////////////////////////////////////////////////////////////
+// Definitions
+///////////////////////////////////////////////////////////////////////////////
+
+// SPI1 pin assignments
+#define SPI_SCK  PB3
+#define SPI_MISO PB4
+#define SPI_MOSI PB5
+#define SPI_CE   PB1
 
 ///////////////////////////////////////////////////////////////////////////////
 // Function prototypes
