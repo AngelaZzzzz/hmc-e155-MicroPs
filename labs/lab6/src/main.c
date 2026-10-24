@@ -1,8 +1,10 @@
 /*
-File: Lab_6_JHB.c
-Author: Josh Brake
-Email: jbrake@hmc.edu
-Date: 9/14/19
+File: main.c
+Author: Angela Zheng (starter code by Josh Brake)
+Email: angzheng@hmc.edu
+Date: 10/22/2026
+Hosts an IoT webpage through the ESP8266 that toggles the LED on PA6,
+displays room temperature read from DS1722 temperature over SPI, and sets the sensor resolution.
 */
 
 
@@ -16,12 +18,18 @@ Date: 9/14/19
 /////////////////////////////////////////////////////////////////
 
 //Defining the web page in two chunks: everything before the current time, and everything after the current time
-char* webpageStart = "<!DOCTYPE html><html><head><title>E155 Web Server Demo Webpage</title>\
+char* webpageStart = "<!DOCTYPE html><html><head><title>E155 Temperature Viewer and LED Controller</title>\
 	<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\
 	</head>\
-	<body><h1>E155 Web Server Demo Webpage</h1>";
+	<body><h1>E155 Temperature Viewer and LED Controller</h1>";
 char* ledStr = "<p>LED Control:</p><form action=\"ledon\"><input type=\"submit\" value=\"Turn the LED on!\"></form>\
 	<form action=\"ledoff\"><input type=\"submit\" value=\"Turn the LED off!\"></form>";
+char* resStr = "<p>Temperature Resolution:</p>\
+	<form action=\"res8\" style=\"display:inline\"><input type=\"submit\" value=\"8-bit\"></form>\
+	<form action=\"res9\" style=\"display:inline\"><input type=\"submit\" value=\"9-bit\"></form>\
+	<form action=\"res10\" style=\"display:inline\"><input type=\"submit\" value=\"10-bit\"></form>\
+	<form action=\"res11\" style=\"display:inline\"><input type=\"submit\" value=\"11-bit\"></form>\
+	<form action=\"res12\" style=\"display:inline\"><input type=\"submit\" value=\"12-bit\"></form>";
 char* webpageEnd   = "</body></html>";
 
 //determines whether a given character sequence is in a char array request, returning 1 if present, -1 if not present
@@ -50,6 +58,27 @@ int updateLEDStatus(char request[])
 // Solution Functions
 /////////////////////////////////////////////////////////////////
 
+// Update resolution according to the new resolution input
+int updateResolution(char request[])
+{
+	static int resolution = DEFAULT_RESOLUTION;
+	int newRes = 0;
+
+	// Check two-digit tags first so "res1x" is never misread
+	if      (inString(request, "res10")==1) newRes = 10;
+	else if (inString(request, "res11")==1) newRes = 11;
+	else if (inString(request, "res12")==1) newRes = 12;
+	else if (inString(request, "res8")==1)  newRes = 8;
+	else if (inString(request, "res9")==1)  newRes = 9;
+
+	if (newRes != 0) {
+		resolution = newRes;
+		initDS1722(resolution);
+	}
+
+	return resolution;
+}
+
 int main(void) {
   configureFlash();
   configureClock();
@@ -58,14 +87,16 @@ int main(void) {
   gpioEnable(GPIO_PORT_B);
   gpioEnable(GPIO_PORT_C);
 
-  pinMode(PB3, GPIO_OUTPUT);
+  pinMode(LED_PIN, GPIO_OUTPUT);
   
   RCC->APB2ENR |= (RCC_APB2ENR_TIM15EN);
   initTIM(TIM15);
   
   USART_TypeDef * USART = initUSART(USART1_ID, 125000);
 
-  // TODO: Add SPI initialization code
+  // Initialize SPI and DS1722
+  initSPI(0b111, 0, 1);
+  initDS1722(DEFAULT_RESOLUTION);
 
   while(1) {
     /* Wait for ESP8266 to send a request.
@@ -84,8 +115,23 @@ int main(void) {
       request[charIndex++] = readChar(USART);
     }
 
-    // TODO: Add SPI code here for reading temperature
-  
+    // Apply any resolution change, then read the temperature over SPI
+    int resolution = updateResolution(request);
+    float temp = readTempRaw() / 256.0f;
+
+    // Show as many decimal places as the resolution provides
+    char tempStr[48];
+    if (resolution == 8)
+      sprintf(tempStr, "%.0f &deg;C (8-bit resolution)", temp);
+    else if (resolution == 9)
+      sprintf(tempStr, "%.1f &deg;C (9-bit resolution)", temp);
+    else if (resolution == 10)
+      sprintf(tempStr, "%.2f &deg;C (10-bit resolution)", temp);
+    else if (resolution == 11)
+      sprintf(tempStr, "%.3f &deg;C (11-bit resolution)", temp);
+    else
+      sprintf(tempStr, "%.4f &deg;C (12-bit resolution)", temp);
+
     // Update string with current LED state
   
     int led_status = updateLEDStatus(request);
@@ -107,7 +153,13 @@ int main(void) {
     sendString(USART, ledStatusStr);
     sendString(USART, "</p>");
 
-  
+    sendString(USART, "<h2>Temperature</h2>");
+    sendString(USART, "<p>");
+    sendString(USART, tempStr);
+    sendString(USART, "</p>");
+
+    sendString(USART, resStr); // buttons for selecting resolution
+
     sendString(USART, webpageEnd);
   }
 }
