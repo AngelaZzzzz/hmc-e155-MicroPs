@@ -2,42 +2,78 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://AngelaZzzzz.github.io/hmc-e155-MicroPs/resources.html</loc>
-    <lastmod>2026-09-08T20:16:53.399Z</lastmod>
+    <lastmod>2026-10-24T11:37:04.346Z</lastmod>
+  </url>
+  <url>
+    <loc>https://AngelaZzzzz.github.io/hmc-e155-MicroPs/projects/water-quality-robot/index.html</loc>
+    <lastmod>2026-10-24T13:14:32.701Z</lastmod>
+  </url>
+  <url>
+    <loc>https://AngelaZzzzz.github.io/hmc-e155-MicroPs/projects/rocketry/index.html</loc>
+    <lastmod>2026-10-25T06:29:00.650Z</lastmod>
+  </url>
+  <url>
+    <loc>https://AngelaZzzzz.github.io/hmc-e155-MicroPs/projects/misc/index.html</loc>
+    <lastmod>2026-10-25T06:29:15.542Z</lastmod>
+  </url>
+  <url>
+    <loc>https://AngelaZzzzz.github.io/hmc-e155-MicroPs/projects/fpga-ai-accelerator/index.html</loc>
+    <lastmod>2026-10-25T06:51:39.557Z</lastmod>
   </url>
   <url>
     <loc>https://AngelaZzzzz.github.io/hmc-e155-MicroPs/labs.html</loc>
-    <lastmod>2026-09-08T20:10:28.552Z</lastmod>
-  </url>
-  <url>
-    <loc>https://AngelaZzzzz.github.io/hmc-e155-MicroPs/labs/lab4/lab4.html</loc>
-    <lastmod>2026-09-29T17:38:03.614Z</lastmod>
-  </url>
-  <url>
-    <loc>https://AngelaZzzzz.github.io/hmc-e155-MicroPs/labs/lab2/lab2.html</loc>
-    <lastmod>2026-09-15T20:33:31.449Z</lastmod>
-  </url>
-  <url>
-    <loc>https://AngelaZzzzz.github.io/hmc-e155-MicroPs/index.html</loc>
-    <lastmod>2026-09-08T19:59:29.160Z</lastmod>
-  </url>
-  <url>
-    <loc>https://AngelaZzzzz.github.io/hmc-e155-MicroPs/blog.html</loc>
-    <lastmod>2026-09-08T11:26:35.682Z</lastmod>
-  </url>
-  <url>
-    <loc>https://AngelaZzzzz.github.io/hmc-e155-MicroPs/labs/lab1/lab1.html</loc>
-    <lastmod>2026-09-08T21:41:36.596Z</lastmod>
-  </url>
-  <url>
-    <loc>https://AngelaZzzzz.github.io/hmc-e155-MicroPs/labs/lab3/lab3.html</loc>
-    <lastmod>2026-09-22T22:09:38.737Z</lastmod>
+    <lastmod>2026-10-24T11:37:04.248Z</lastmod>
   </url>
   <url>
     <loc>https://AngelaZzzzz.github.io/hmc-e155-MicroPs/labs/lab5/lab5.html</loc>
-    <lastmod>2026-10-06T21:17:14.078Z</lastmod>
+    <lastmod>2026-10-24T11:37:26.729Z</lastmod>
+  </url>
+  <url>
+    <loc>https://AngelaZzzzz.github.io/hmc-e155-MicroPs/labs/lab3/lab3.html</loc>
+    <lastmod>2026-10-24T11:37:25.538Z</lastmod>
+  </url>
+  <url>
+    <loc>https://AngelaZzzzz.github.io/hmc-e155-MicroPs/labs/lab1/lab1.html</loc>
+    <lastmod>2026-10-24T11:37:24.250Z</lastmod>
+  </url>
+  <url>
+    <loc>https://AngelaZzzzz.github.io/hmc-e155-MicroPs/blog.html</loc>
+    <lastmod>2026-10-24T11:37:04.298Z</lastmod>
+  </url>
+  <url>
+    <loc>https://AngelaZzzzz.github.io/hmc-e155-MicroPs/index.html</loc>
+    <lastmod>2026-10-25T06:57:55.184Z</lastmod>
+  </url>
+  <url>
+    <loc>https://AngelaZzzzz.github.io/hmc-e155-MicroPs/labs/lab2/lab2.html</loc>
+    <lastmod>2026-10-24T11:37:24.769Z</lastmod>
+  </url>
+  <url>
+    <loc>https://AngelaZzzzz.github.io/hmc-e155-MicroPs/labs/lab4/lab4.html</loc>
+    <lastmod>2026-10-24T11:37:26.237Z</lastmod>
+  </url>
+  <url>
+    <loc>https://AngelaZzzzz.github.io/hmc-e155-MicroPs/labs/lab6/lab6.html</loc>
+    <lastmod>2026-10-25T07:04:47.513Z</lastmod>
   </url>
   <url>
     <loc>https://AngelaZzzzz.github.io/hmc-e155-MicroPs/posts/first-post.html</loc>
     <lastmod>2026-09-08T20:04:24.270Z</lastmod>
+  </url>
+  <url>
+    <loc>https://AngelaZzzzz.github.io/hmc-e155-MicroPs/projects/logic-board/index.html</loc>
+    <lastmod>2026-10-24T13:15:18.775Z</lastmod>
+  </url>
+  <url>
+    <loc>https://AngelaZzzzz.github.io/hmc-e155-MicroPs/projects/multicycle-riscv/index.html</loc>
+    <lastmod>2026-10-25T06:29:00.547Z</lastmod>
+  </url>
+  <url>
+    <loc>https://AngelaZzzzz.github.io/hmc-e155-MicroPs/projects/skyworks-vpu/index.html</loc>
+    <lastmod>2026-10-25T06:51:23.897Z</lastmod>
+  </url>
+  <url>
+    <loc>https://AngelaZzzzz.github.io/hmc-e155-MicroPs/projects.html</loc>
+    <lastmod>2026-10-24T13:20:01.494Z</lastmod>
   </url>
 </urlset>

@@ -1,11 +1,28 @@
 [
   {
-    "listing": "/resources.html",
-    "items": []
-  },
-  {
     "listing": "/labs.html",
     "items": [
+      "/labs/lab1/lab1.html",
+      "/labs/lab2/lab2.html",
+      "/labs/lab3/lab3.html",
+      "/labs/lab4/lab4.html",
+      "/labs/lab5/lab5.html",
+      "/labs/lab6/lab6.html"
+    ]
+  },
+  {
+    "listing": "/blog.html",
+    "items": [
+      "/posts/first-post.html"
+    ]
+  },
+  {
+    "listing": "/index.html",
+    "items": [
+      "/projects/multicycle-riscv/index.html",
+      "/projects/water-quality-robot/index.html",
+      "/projects/rocketry/index.html",
+      "/labs/lab6/lab6.html",
       "/labs/lab5/lab5.html",
       "/labs/lab4/lab4.html",
       "/labs/lab3/lab3.html",
@@ -14,9 +31,21 @@
     ]
   },
   {
-    "listing": "/blog.html",
+    "listing": "/projects.html",
     "items": [
-      "/posts/first-post.html"
+      "/projects/fpga-ai-accelerator/index.html",
+      "/projects/skyworks-vpu/index.html",
+      "/projects/water-quality-robot/index.html",
+      "/projects/multicycle-riscv/index.html",
+      "/projects/logic-board/index.html",
+      "/projects/misc/index.html",
+      "/projects/rocketry/index.html",
+      "/labs/lab6/lab6.html",
+      "/labs/lab5/lab5.html",
+      "/labs/lab4/lab4.html",
+      "/labs/lab3/lab3.html",
+      "/labs/lab2/lab2.html",
+      "/labs/lab1/lab1.html"
     ]
   }
 ]
