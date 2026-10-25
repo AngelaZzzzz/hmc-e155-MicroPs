@@ -1,3 +1,6 @@
 /.quarto/
 /_site/
 **/*.quarto_ipynb
+
+# raw project source drop (includes the logic board memo, which should stay private)
+/files/

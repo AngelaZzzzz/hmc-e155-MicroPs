@@ -1,0 +1,18 @@
+---
+title: "AI Accelerator on FPGA"
+description: "A hardware accelerator for neural-network inference implemented on an FPGA."
+author: "Angela Zheng"
+date: "2026-10-15"
+image: cover.svg
+categories: [In Progress, FPGA, Hardware Acceleration]
+---
+
+[In progress]{.status-pill}
+
+<!-- TODO: replace this placeholder with the project write-up -->
+
+## Overview
+
+I'm building a hardware accelerator for neural-network inference on an FPGA.
+
+Check back soon for the architecture, resource and performance results, and a demo.

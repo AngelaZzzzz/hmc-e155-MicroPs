@@ -4,8 +4,11 @@ description: "Playing Für Elise and a mystery piece on a speaker by generating 
 author: "Angela Zheng"
 date: "9/28/2026"
 categories:
-  - lab
+  - STM32
+  - C
+  - Timers
 draft: false
+image: images/lab4_schematics.jpg
 ---
 
 ## Introduction

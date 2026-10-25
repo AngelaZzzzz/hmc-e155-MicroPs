@@ -1,0 +1,195 @@
+---
+title: "Multicycle RISC-V Processor"
+description: "A 32-bit multicycle RISC-V processor in SystemVerilog, synthesized for an iCE40 FPGA, with an interactive, cycle-accurate datapath simulator."
+author: "Angela Zheng"
+date: "2026-05-01"
+image: cover.png
+categories: [SystemVerilog, Computer Architecture, FPGA]
+resources:
+  - riscv-sim.js
+  - src/*
+---
+
+::: {.project-meta}
+**Course** · E85 Digital Electronics & Computer Engineering, Harvey Mudd College
+
+**Timeline** · Spring 2026
+
+**Tools** · SystemVerilog, QuestaSim / Icarus Verilog, Yosys, nextpnr
+:::
+
+## Overview
+
+I built a multicycle processor that runs a subset of the 32-bit RISC-V base integer
+instruction set (RV32I). The single-cycle processor from *Digital Design and Computer
+Architecture: RISC-V Edition* uses separate instruction and data memories. This design uses
+**one shared memory** and reuses **one ALU** for everything. Each instruction runs over 3–5
+clock cycles, and a finite-state machine in the control unit sequences it.
+
+Supported instructions: `lw`, `sw`, `add`, `sub`, `and`, `or`, `slt`, `addi`, `andi`, `ori`,
+`slti`, `beq`, and `jal`.
+
+My main contributions:
+
+- **Datapath** (`datapath` in `top.sv`): the non-architectural registers (`OldPC`, `Instr`,
+  `Data`, `A`, `WriteData`, `ALUOut`) that hold values between cycles, plus the `SrcA`, `SrcB`,
+  `Result` and address multiplexers that route the shared ALU and memory.
+- **Main FSM decoder** (`maindec.sv`): an 11-state Moore machine that sets every select and
+  write-enable signal for each instruction type.
+- **Verification**: a self-checking testbench runs the standard `riscvtest` program. It passes
+  only when the value 71 is stored to address 84.
+
+## Try it: interactive datapath
+
+The simulator below is a cycle-accurate model of my RTL, ported signal-for-signal to
+JavaScript. Step through the program one clock at a time. The highlighted wires show the
+data moving through the datapath in the current FSM state. The tags on the multiplexers and
+registers show the control signals the FSM is driving. Copper-colored blocks are written on
+the next clock edge.
+
+::: {.column-page-right}
+```{=html}
+<div class="rv-sim">
+  <div class="rv-toolbar">
+    <div class="rv-buttons">
+      <button class="btn btn-primary btn-sm rv-step">Step cycle</button>
+      <button class="btn btn-outline-primary btn-sm rv-stepi">Step instruction</button>
+      <button class="btn btn-outline-primary btn-sm rv-run">▶ Run</button>
+      <button class="btn btn-outline-secondary btn-sm rv-reset">Reset</button>
+    </div>
+    <label class="rv-speed-label">Speed
+      <input type="range" class="rv-speed" min="1" max="30" value="6" aria-label="Cycles per second">
+    </label>
+    <select class="form-select form-select-sm rv-select" aria-label="Program">
+      <option value="riscvtest">riscvtest (E85 Lab 11 self-check)</option>
+      <option value="fib">Fibonacci loop</option>
+      <option value="custom">Custom machine code…</option>
+    </select>
+  </div>
+  <div class="rv-custom" hidden>
+    <textarea rows="3" spellcheck="false" placeholder="Paste hex instruction words, one per line (e.g. 00500113)"></textarea>
+    <button class="btn btn-sm btn-primary rv-load">Load program</button>
+  </div>
+  <div class="rv-status">
+    <div><span class="rv-k">Cycle</span><span class="rv-cycle">0</span></div>
+    <div><span class="rv-k">FSM state</span><span class="rv-state"></span></div>
+    <div class="rv-status-wide"><span class="rv-k">Instruction</span><span class="rv-instr"></span></div>
+  </div>
+  <div class="rv-banner" hidden></div>
+  <div class="rv-scroll"><svg class="rv-datapath" role="img" aria-label="Multicycle RISC-V datapath"></svg></div>
+  <div class="rv-grid">
+    <div class="rv-panel">
+      <h4>Control FSM</h4>
+      <svg class="rv-fsm" role="img" aria-label="Main decoder state machine"></svg>
+    </div>
+    <div class="rv-panel">
+      <h4>Program</h4>
+      <div class="rv-program-wrap">
+        <table class="rv-program"><thead><tr><th>Addr</th><th>Machine code</th><th>Assembly</th></tr></thead><tbody></tbody></table>
+      </div>
+    </div>
+    <div class="rv-panel">
+      <h4>Register file</h4>
+      <div class="rv-regs"></div>
+    </div>
+    <div class="rv-panel">
+      <h4>Memory writes</h4>
+      <ul class="rv-writes"></ul>
+    </div>
+  </div>
+</div>
+<script src="riscv-sim.js"></script>
+```
+:::
+
+::: {.callout-note collapse="true"}
+## How the simulator was verified against the RTL
+
+I ran the SystemVerilog in Icarus Verilog with a tracing testbench. It prints the FSM state,
+`PC`, `Instr`, `RegWrite`, `Result`, `MemWrite`, the memory address and `WriteData` on every
+rising clock edge. The JavaScript model prints the same trace format, and I diffed the two over
+400 cycles of both programs above. They match on every cycle of both programs. The only
+differences are register and memory values that are still uninitialized `x` in the RTL (the
+model treats them as 0), and cycles after the PC runs off the end of the 64-word memory.
+:::
+
+## The control FSM
+
+| State | Name | What happens |
+|---|---|---|
+| S0 | Fetch | `Instr ← Mem[PC]`, `OldPC ← PC`, `PC ← PC + 4` (ALU computes PC+4) |
+| S1 | Decode | Read `rs1`/`rs2` into `A`/`WriteData`; ALU precomputes `OldPC + imm` (branch/jump target) |
+| S2 | MemAdr | `ALUOut ← A + imm` (load/store address) |
+| S3 | MemRead | `Data ← Mem[ALUOut]` |
+| S4 | MemWB | `rd ← Data` |
+| S5 | MemWrite | `Mem[ALUOut] ← WriteData` |
+| S6 | ExecuteR | `ALUOut ← A op WriteData` |
+| S8 | ExecuteI | `ALUOut ← A op imm` |
+| S7 | ALUWB | `rd ← ALUOut` |
+| S9 | JAL | `PC ← target`, `ALUOut ← OldPC + 4` (then S7 writes `rd`) |
+| S10 | BEQ | ALU subtracts; if `Zero`, `PC ← target` |
+
+: Main decoder states. Loads take 5 cycles; R-type, I-type and `jal` take 4; stores and branches take 3. {.striped .hover}
+
+## Synthesis results
+
+I synthesized the RTL with the open-source [Yosys](https://github.com/YosysHQ/yosys) flow for a
+Lattice iCE40, the same FPGA family as the UPduino used in E155. Then I placed and routed it with
+nextpnr. The processor core (`RISCVmulticycle`) uses:
+
+::: {.stat-grid}
+::: {.stat}
+[2,312]{.stat-num}
+[4-input LUTs]{.stat-label}
+:::
+::: {.stat}
+[1,220]{.stat-num}
+[flip-flops]{.stat-label}
+:::
+::: {.stat}
+[31]{.stat-num}
+[carry cells (ALU adder)]{.stat-label}
+:::
+::: {.stat}
+[~58 MHz]{.stat-num}
+[F~max~ on iCE40 HX8K]{.stat-label}
+:::
+:::
+
+| Module | LUT4 | Flip-flops | Notes |
+|---|---:|---:|---|
+| `RegFile` | 1,833 | 992 | 31 × 32-bit registers (x0 hard-wired); two asynchronous read ports dominate the LUT count |
+| `alu` | 143 | — | plus 31 `SB_CARRY` cells for the 32-bit add/subtract |
+| `mux3` × 3 | 192 | — | `SrcA`, `SrcB`, `Result` |
+| `mux2` | 32 | — | memory address select |
+| Datapath registers | — | 224 | `PC`, `OldPC`, `Instr`, `Data`, `A`, `WriteData`, `ALUOut` |
+| `maindec` | 32 | 4 | 11-state FSM (4-bit state register) |
+| `Extend` | 15 | — | I/S/B/J immediate generation |
+| `aludec` + `controller` | 6 | — | |
+
+: Per-module breakdown from `synth_ice40 -noflatten`. The flattened total is slightly higher because Yosys optimizes differently across module boundaries. {.striped .hover}
+
+About 80% of the logic is the **register file**. Its two asynchronous read ports become
+32:1 multiplexers built from LUTs, because iCE40 block RAM only supports synchronous reads.
+Changing the register file to synchronous reads would let it fit in block RAM and free most of
+the LUTs. The control logic, by contrast, takes fewer than 40 LUTs.
+
+::: {.callout-tip collapse="true"}
+## Reproduce the synthesis
+
+```bash
+pip install yowasp-yosys yowasp-nextpnr-ice40
+yowasp-yosys -p "read_verilog -sv top.sv maindec.sv; synth_ice40 -top RISCVmulticycle -json core.json; stat"
+yowasp-nextpnr-ice40 --hx8k --package ct256 --json core.json --pcf-allow-unconstrained --freq 12
+```
+
+The timing run uses the larger HX8K because the core's 130 unconstrained I/O ports don't fit
+the UP5K's 39-pin package.
+:::
+
+## Source code
+
+- [`top.sv`](src/top.sv): top level, memory, datapath, controller, ALU, register file
+- [`maindec.sv`](src/maindec.sv): main FSM decoder
+- [`riscv_testbench.sv`](src/riscv_testbench.sv): self-checking testbench
+- [`memfile.asm`](src/memfile.asm) / [`memfile.dat`](src/memfile.dat): test program

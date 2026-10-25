@@ -1,26 +1,58 @@
 project:
   type: website
+  resources:
+    - images/
 
 website:
-  title: "E155 Portfolio"
+  title: "Angela Zheng"
+  description: "Electrical engineering portfolio of Angela Zheng — digital design, embedded systems, and PCB design."
+  favicon: images/angela_zheng_rocket.jpg
+  page-navigation: true
+  back-to-top-navigation: true
+  open-graph: true
   navbar:
+    title: "Angela Zheng"
+    collapse-below: lg
     left:
       - href: index.qmd
         text: Home
+      - href: projects.qmd
+        text: Projects
+      - href: labs.qmd
+        text: E155 Labs
       - href: blog.qmd
         text: Blog
-      - href: labs.qmd
-        text: Labs
       - href: resources.qmd
         text: Resources
+    right:
+      - icon: github
+        href: https://github.com/AngelaZzzzz
+        aria-label: GitHub
+      - icon: linkedin
+        href: https://www.linkedin.com/in/angela-zheng-240a0b218
+        aria-label: LinkedIn
+  page-footer:
+    left: "© 2026 Angela Zheng"
+    center: "Built with [Quarto](https://quarto.org)"
+    right:
+      - icon: github
+        href: https://github.com/AngelaZzzzz
+        aria-label: GitHub
+      - icon: linkedin
+        href: https://www.linkedin.com/in/angela-zheng-240a0b218
+        aria-label: LinkedIn
 
 format:
   html:
     theme:
-      - cosmo
-      - brand
+      light: [cosmo, theme-light.scss]
+      dark: [cosmo, theme-dark.scss]
     css: styles.css
     toc: true
-
-
-
+    toc-location: right
+    toc-title: "On this page"
+    smooth-scroll: true
+    code-copy: true
+    highlight-style: github
+    lightbox: true
+    fig-cap-location: bottom

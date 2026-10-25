@@ -1,0 +1,48 @@
+/*-- scss:defaults --*/
+
+// Fonts
+$font-family-sans-serif: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+$headings-font-family: "Space Grotesk", "Inter", system-ui, sans-serif;
+$font-family-monospace: "JetBrains Mono", ui-monospace, SFMono-Regular, Consolas, monospace;
+$headings-font-weight: 600;
+$font-size-base: 1.02rem;
+$line-height-base: 1.7;
+
+// Palette — PCB green with a copper accent
+$pine:    #1f7a5a;
+$copper:  #c47a2c;
+$ink:     #1c2321;
+$paper:   #fbfaf7;
+
+$body-bg:    $paper;
+$body-color: $ink;
+$primary:    $pine;
+$secondary:  #5d6b66;
+$link-color: $pine;
+$link-hover-color: darken($pine, 10%);
+
+// Navbar & footer
+$navbar-bg: rgba($paper, 0.85);
+$navbar-fg: $ink;
+$navbar-hl: $pine;
+$footer-bg: $paper;
+$footer-fg: #6b7672;
+
+// Misc
+$border-radius: 0.6rem;
+$code-color: #a3471f;
+$code-bg: #f1eee7;
+$callout-margin-top: 1.5rem;
+
+/*-- scss:rules --*/
+:root {
+  --az-accent: #{$copper};
+  --az-primary: #{$pine};
+  --az-surface: #ffffff;
+  --az-surface-2: #f3f1ec;
+  --az-border: #e4e1d9;
+  --az-muted: #5d6b66;
+  --az-shadow: 0 1px 2px rgba(20, 30, 25, 0.06), 0 8px 24px rgba(20, 30, 25, 0.06);
+  --az-shadow-hover: 0 2px 4px rgba(20, 30, 25, 0.08), 0 16px 40px rgba(20, 30, 25, 0.12);
+  --az-grid-dot: rgba(31, 122, 90, 0.10);
+}

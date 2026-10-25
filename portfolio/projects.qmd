@@ -1,0 +1,38 @@
+---
+title: "Projects"
+subtitle: "Selected engineering work — personal, research, and coursework."
+page-layout: full
+title-block-banner: false
+toc: false
+listing:
+  - id: projects
+    contents: projects
+    type: grid
+    grid-columns: 3
+    sort: "date desc"
+    fields: [image, date, title, description, categories]
+    image-height: 220px
+    categories: false
+    date-format: "MMMM YYYY"
+  - id: coursework
+    contents: labs
+    type: grid
+    grid-columns: 3
+    sort: "date desc"
+    max-items: 3
+    fields: [image, title, description]
+    image-height: 180px
+---
+
+::: {#projects}
+:::
+
+::: {.section-block}
+::: {.section-head}
+<h2 class="section-title">Coursework: E155 Microprocessor Systems</h2>
+[All labs →](labs.qmd){.section-link}
+:::
+
+::: {#coursework}
+:::
+:::

@@ -4,8 +4,10 @@ description: "Assembling the MicroPs development board and driving three LEDs an
 author: "Angela Zheng"
 date: "9/8/2026"
 categories:
-  - lab
+  - FPGA
+  - SystemVerilog
 draft: false
+image: images/lab1_7.jpg
 ---
 
 ## Introduction

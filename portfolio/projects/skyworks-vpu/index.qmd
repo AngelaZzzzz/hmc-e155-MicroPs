@@ -1,0 +1,27 @@
+---
+title: "Vector Processing Unit: Execution Unit"
+description: "Designing and implementing the execution unit of a vector processing unit in Wally, a 5-stage pipelined processor."
+author: "Angela Zheng"
+date: "2026-8-01"
+image: cover.svg
+categories: [In Progress, Computer Architecture, RTL Design]
+---
+
+[In progress]{.status-pill}
+
+<!-- TODO: replace this placeholder with the project write-up -->
+
+::: {.project-meta}
+**Sponsor** · Skyworks
+
+**Timeline** · 2026–2027
+
+**Focus** · Vector execution unit: datapath, lane design, verification
+:::
+
+## Overview
+
+I'm designing and implementing the **execution unit** of a vector processing unit (VPU). This
+is the hardware that performs arithmetic across many vector elements in parallel.
+
+Check back soon for architecture diagrams, design decisions, and verification results.

@@ -1,8 +1,16 @@
 ---
-title: "Labs"
+title: "E155 Labs"
+subtitle: "Lab reports from E155: Microprocessor-Based Systems at Harvey Mudd College — FPGA design in SystemVerilog and embedded C on the STM32L432KC."
+page-layout: full
+title-block-banner: false
+toc: false
 listing:
   contents: labs
-  sort: "date desc"
-  type: default
-  categories: false
+  sort: "date asc"
+  type: grid
+  grid-columns: 3
+  fields: [image, date, title, description, categories]
+  image-height: 200px
+  date-format: "MMM D, YYYY"
+  categories: true
 ---

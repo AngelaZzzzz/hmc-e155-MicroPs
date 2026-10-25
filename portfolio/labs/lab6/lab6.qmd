@@ -1,280 +1,171 @@
 ---
-title: "Lab 5: Interrupts"
-description: "Measuring the speed and direction of a DC motor by reading a quadrature encoder with STM32L432KC external interrupts"
+title: "Lab 6: The Internet of Things and Serial Peripheral Interface"
+description: "Building an internet-connected device that toggles an LED and reports room temperature from a DS1722 SPI sensor, served by an ESP8266 web server over UART from the STM32L432KC"
 author: "Angela Zheng"
-date: "10/5/2026"
+date: "10/24/2026"
 categories:
-  - lab
+  - STM32
+  - C
+  - SPI
 draft: false
+image: images/Lab6_Webpage.png
 ---
 
 ## Introduction
 
-The goal of this lab was to measure the angular velocity and direction of a DC motor using the STM32L432KC microcontroller and a quadrature encoder. The encoder has two hall effect sensors, A and B, that output square waves 90° out of phase as the motor spins. The MCU uses external interrupts (EXTI) to count every rising and falling edge of both channels, and converts that count into angular velocity in rev/s and a direction every second, and prints it to the Segger debug terminal.
+The goal of this lab was to build a simple Internet of Things (IoT) device. An ESP8266 WiFi
+module hosts a web page that lets a user turn an LED on and off and view the current room
+temperature. The STM32L432KC MCU does the real work:
 
-The motor used in lab has an encoder with 408 pulses per revolution (PPR) and spins at approximately 2.5 rev/s when 12 V is applied.
+- It receives web requests from the ESP8266 over a **125000 baud UART** link.
+- It toggles the LED on `PA6`.
+- It reads the temperature from a **DS1722 digital thermometer over SPI**, using an SPI driver
+  I wrote with the CMSIS device templates in `stm32l432xx.h`.
+- It generates the HTML page and sends it back to the ESP8266, which forwards it to the browser.
+
+Beyond the required LED control and temperature display, the web page also lets the user change
+the sensor's resolution from 8 to 12 bits. The temperature is displayed with as many decimal
+places as the selected resolution provides.
 
 ## Design and Testing Methodology
 
-The GPIO, RCC, and TIM library files are adapted from the [interrupt tutorial](https://github.com/HMC-E155/tutorial-interrupts/tree/solution), and printing to the terminal follows the printf-without-UART tutorial linked in the lab description.
+The GPIO, RCC, FLASH, TIM, and USART libraries and the ESP8266 web server code come from the
+Lab 6 starter code. I wrote the SPI driver (`STM32L432KC_SPI.c/h`), the DS1722 driver
+(`DS1722.c/h`), and the request handling and web page generation in `main.c`.
 
-### Encoder inputs
+### ESP8266–MCU interface
 
-Encoder channel A is connected to `PA8` and channel B to `PA12`. The encoder uses 5 V, so both pins were chosen from the 5 V tolerant (FT) pins listed in Tables 13–14 of the STM32L432KC datasheet. Both pins are configured as GPIO inputs with the MCU's internal pull-up resistors enabled.
+The ESP8266 is connected to `USART1` on the MCU, with TX and RX crossed: MCU TX (`PA9`) goes to
+ESP RX and MCU RX (`PA10`) goes to ESP TX. Each time a browser loads the page, the ESP8266 sends
+the most recent request as `/REQ:<tag>\n` (for example, `/REQ:ledon\n`). The main loop:
 
-### Interrupt configuration
+1. Reads characters from the UART until it sees `\n`.
+2. Checks the request for a resolution tag (`res8` to `res12`) and reconfigures the DS1722 if
+   one is present.
+3. Reads the temperature over SPI.
+4. Checks the request for `ledon` / `ledoff` and drives `PA6`.
+5. Sends the full HTML page, from `<!DOCTYPE html>` to `</html>`, back over the UART.
 
-Each encoder interrupt is configured as follows:
+When checking for resolution tags, the two-digit tags (`res10`, `res11`, `res12`) are tested
+before `res8`/`res9`, so a request is never matched to the wrong resolution.
 
-1. Enable the SYSCFG clock in `RCC_APB2ENR`.
-2. Select port A for EXTI8 and EXTI12 in `SYSCFG_EXTICR3` and `SYSCFG_EXTICR4`.
-3. Unmask lines 8 and 12 in `EXTI_IMR1`.
-4. Enable both rising and falling edge triggers on both lines in `EXTI_RTSR1` and `EXTI_FTSR1`.
-5. Enable `EXTI9_5` (IRQ 23) and `EXTI15_10` (IRQ 40) in the NVIC.
+### SPI driver
+
+`initSPI(br, cpol, cpha)` configures `SPI1` directly through its memory-mapped registers:
+
+- **Pins:** `SCK` on `PB3`, `MISO` on `PB4` and `MOSI` on `PB5`, all set to alternate
+  function 5. The chip enable `CE` on `PB1` is a regular GPIO output, because the DS1722's chip
+  enable is **active high**, unlike the active-low NSS of the SPI peripheral.
+- **`CR1`:** master mode, software slave management (`SSM`, `SSI`), MSB first, and the baud
+  rate, polarity, and phase passed in as arguments.
+- **`CR2`:** 8-bit data size (`DS = 0b0111`) with `FRXTH` set, so `RXNE` flags after a single byte.
+
+The DS1722 is initialized with `initSPI(0b111, 0, 1)`:
+
+- `BR = 0b111` divides the 80 MHz clock by 256, giving a **312.5 kHz SCK**, well under the
+  DS1722's 5 MHz maximum.
+- `CPOL = 0, CPHA = 1` matches the DS1722 SPI timing, where data changes on the rising edge of
+  SCK and is sampled on the falling edge.
+
+`spiSendReceive()` waits for `TXE`, writes one byte to `DR`, waits for `RXNE`, and returns the
+received byte. `DR` is accessed through an 8-bit pointer so that each write sends exactly one
+byte rather than packing two.
+
+### DS1722 driver
+
+Every DS1722 transaction is two bytes inside one chip-enable window: an address byte followed
+by a data byte.
+
+| Function | Address | Data | Purpose |
+|---|---|---|---|
+| `initDS1722(res)` | `0x80` (config write) | `0xE0 + ((res − 8) << 1)` | Continuous conversion at the selected resolution |
+| `readTempRaw()` | `0x02` (temp MSB) | `0x00` (dummy) | Integer part, °C (two's complement) |
+| | `0x01` (temp LSB) | `0x00` (dummy) | Fractional part, in 1/16 °C steps at 12-bit |
+
+`readTempRaw()` combines the two bytes into a signed 16-bit value. The temperature in °C is then
+`raw / 256`.
 
 ### Testing
 
-The system was tested in three ways:
-
-1. 12 V was applied to the motor and the printed velocity was compared against the expected ~2.5 rev/s
-2. The motor supply was reversed and the printed direction and sign of the velocity were checked to flip.
-3. The motor was turned off to verify a reading of 0 rev/s, and ran at low supply voltage to verify a small non-zero velocity.
+1. **SPI without the sensor.** Before wiring the DS1722, I probed `CE`, `SCK`, `MOSI` and `MISO`
+   with the logic analyzer. I checked that the configuration write and the temperature reads
+   produced the right addresses, data, clock polarity and phase, and chip-enable framing.
+2. **SPI with the sensor.** With the DS1722 connected, I decoded the MISO bytes from the scope
+   captures and compared them to the temperature shown on the web page.
+3. **Web page.** I connected to the ESP8266's access point, loaded `http://192.168.4.1/`, and
+   checked that the LED buttons toggled the LED and its status text, and that each resolution
+   button changed the number of decimal places shown.
 
 ## Technical Documentation
 
-The source code for the project can be found in the associated [Github repository](https://github.com/AngelaZzzzz/hmc-e155-MicroPs/tree/main/labs/lab5/).
+The source code for the project can be found in the associated [GitHub repository](https://github.com/AngelaZzzzz/hmc-e155-MicroPs/tree/main/labs/lab6/).
 
-### Flowchart
-
-![Figure 1: Flowchart of the main loop and the two interrupt handlers.](images/lab5_flow_chart.jpg){width=90% fig-align="center"}
-
-The main loop and the two interrupt handlers communicate through the `encoder_count`. The handlers updates the count on every interrupt and the main loop reads and clears the count once per second.
+<!-- TODO: add the block diagram / flowchart, e.g.
+![Figure 1: Flowchart of the main loop.](images/lab6_flow_chart.jpg){width=90% fig-align="center"}
+-->
 
 ### Schematic
 
-![Figure 2: Schematic of the encoder circuit.](images/lab5_schematic.jpg){width=90% fig-align="center"}
+<!-- TODO: add the schematic, e.g.
+![Figure 2: Schematic of the MCU, ESP8266, DS1722 and LED.](images/lab6_schematic.jpg){width=90% fig-align="center"}
+-->
 
-The motor is powered from an external 12 V supply, and the encoder is powered from the 5 V and GND pins of the MCU, and the encoder A and encoder B outputs are connected to pins `PA8` and `PA12` on the MCU. The internal pull-up resistors on `PA8` and `PA12` are enabled in software.
+The DS1722 is powered from 3.3 V, with its `SERMODE` pin tied high to select SPI mode. `CE`,
+`SCLK`, `SDI` and `SDO` connect to `PB1`, `PB3`, `PB5` (MOSI) and `PB4` (MISO). The ESP8266 is
+powered from 3.3 V and connects to `PA9`/`PA10`. The LED is driven from `PA6` through a
+current-limiting resistor. The DIP switches between the MCU and the FPGA are open, so the FPGA
+cannot drive any of these pins.
 
-## Calculations
+### SPI logic analyzer captures
 
-![Figure 3: Velocity, resolution, and update rate calculations.](images/lab5_calculations.jpg){width=90% fig-align="center"}
+In each capture, channel 1 (yellow) is `CE`, 2 (green) is `SCK`, 3 (blue) is `MISO`, and
+4 (pink) is `MOSI`.
 
-Notice that since every edge of both channels triggers an interrupt, the design gets 4 counts per encoder pulse (4× decoding), or 4 × 408 = **1632 counts per revolution**, the highest resolution possible with this encoder.
+![Figure 3: Configuration write without the sensor attached. MOSI sends address `0x80` followed by `0xE8` (continuous conversion, 12-bit resolution). MISO floats because no device is driving it.](images/spiwrite_wo_temp_sensor.png){width=90% fig-align="center"}
 
-## Interrupts vs. Manual Polling
+![Figure 4: One call to `readTempRaw()` with the sensor attached: two back-to-back two-byte transactions (MSB, then LSB), each framed by its own CE pulse.](images/Lab6_SPI_Read.png){width=90% fig-align="center"}
+
+![Figure 5: Temperature MSB read. MOSI sends address `0x02`, and the DS1722 replies on MISO with `0x17` = 23 °C.](images/Lab6_SPI_Read1.png){width=90% fig-align="center"}
+
+![Figure 6: Temperature LSB read. MOSI sends address `0x01`, and the DS1722 replies with `0x20` = 0.125 °C, the fractional part of the reading.](images/Lab6_SPI_Read2.png){width=90% fig-align="center"}
 
 <details>
-<summary>Experiment Data & Explanation</summary>
+<summary>Reads captured before the sensor was connected</summary>
 
-To compare the two approaches, I setup `PA6` as a timing signal and probed it on the oscope. In the interrupt version, the pin toggles every time an interrupt is handled. In the polling version, the main loop toggles the pin once per iteration, with a `printf()` of both encoder pins in between to represent the other work a real main loop has to do.
+![Figure 7: Temperature MSB read (`0x02`) without the sensor attached.](images/spiread_wo_temp_sensor.png){width=90% fig-align="center"}
 
-![Figure 4: Polling pin toggled by the encoder interrupts with the motor at 2.5 rev/s.](images/lab5_interrupt_oscope.png){width=90% fig-align="center"}
-
-As shown in Figure 4, with the motor at ~2.5 rev/s the pin toggles at ~4.67 kHz. Since the handlers only run when an interrupt occurs, the main loop can execute other instructions such as `printf()` without affecting the count.
-
-![Figure 5: Polling pin toggled once per polling loop iteration (one `printf()`).](images/lab5_manual_oscope.png){width=90% fig-align="center"}
-
-![Figure 6: Polling pin toggled once per polling loop iteration (two `printf()`s).](images/lab5_manual2pf_oscope.png){width=90% fig-align="center"}
-
-For polling, the polling rate is set by how long one loop iteration takes. If the loop contains other instructions such as a `printf()`, the polling rate will decrease. Figure 5 and Figure 6 are the polling rate with one and two `printf()`s, respecively, and we can see that it decreased significantly when the loop has other instructions to execute. Moreover, for polling to not miss any edges, the loop must read the pins at least once between every two consecutive edges, which is at risk of losing edges for high speed input signals.
+![Figure 8: Temperature LSB read (`0x01`) without the sensor attached.](images/spiread2_wo_temp_sensor.png){width=90% fig-align="center"}
 
 </details>
 
-The tradeoff is that interrupts are a bit more complicated to implement, and at extremely high rates the interrupts could arrive faster than the handler can finish. However, this limit is set by the time the handler takes instead of other instructions in the polling loop, which is a bigger problem. Thus, the interrupt-based design is the better choice.
-
 ## Results and Discussion
-With 12 V applied, the debug terminal reported a velocity of ~2.7 rev/s, which is close to the expected ~2.5 rev/s. Reversing the motor leads flipped the reported direction. With the motor off the system reported 0 rev/s, and when turned slowly the system still reported a small non-zero velocity.
 
-The design meets all of the proficiency requirements and the excellence requirements. The system uses both edges of both encoder channels for the maximum 1632 counts per revolution, does not miss pulses at high speed, and still reports a non-zero velocity at low speeds.
+![Figure 9: The web page served by the ESP8266, showing the LED status and a 12-bit temperature reading of 23.1875 °C.](images/Lab6_Webpage.png){width=90% fig-align="center"}
+
+The device works as intended. Loading `http://192.168.4.1/` shows the LED controls, the LED
+status, the current temperature, and the resolution buttons. Clicking *Turn the LED on!* or
+*Turn the LED off!* changes both the LED and its status text. The temperature reads about 23 °C,
+a reasonable room temperature.
+
+The logic analyzer captures confirm the SPI timing: `CE` stays high for the whole two-byte
+transaction, data changes on the rising edge of `SCK`, and the sensor's MISO bytes match the
+temperature on the web page.
+
+The ESP8266 is slow, so a page sometimes takes a few seconds or a couple of reloads to appear.
+Also, because the page is only regenerated when it is requested, the temperature updates only
+when the page is refreshed or a button is clicked.
+
+The design meets all of the proficiency requirements. The adjustable-resolution controls go
+beyond the base specification.
 
 ## Conclusion
 
-The system measures the speed and direction of the motor using two EXTI interrupts that fire on every edge of both encoder channels, giving 1632 counts per revolution. The main loop converts the count into rev/s once per second.
+The STM32L432KC parses web requests from the ESP8266 over UART, controls an LED, reads the DS1722
+over a CMSIS-based SPI driver, and serves a dynamic HTML page with the LED state and the current
+temperature at a user-selectable resolution.
 
-I spent a total of 10 hours working on this lab.
+I spent a total of <!-- TODO --> hours working on this lab.
 
 ## AI Prototype Summary
 
-Model used: **Claude Haiku 4.5**
-
-### AI Chat Transcript
-
-<details>
-<summary>User Prompt</summary>
-
-Write me interrupt handlers to interface with a quadrature encoder. I’m using the STM32L432KC, what pins should I connect the encoder to in order to allow it to easily trigger the interrupts?
-
-</details>
-
-<details>
-<summary>AI Response</summary>
-
-I'll help you set up interrupt handlers for a quadrature encoder on the STM32L432KC. Let me first check the product details to give you accurate pin recommendations.
-
-Check for any relevant microcontroller or hardware details
-
-That skill is for Anthropic products, not embedded systems. Let me give you direct guidance on the STM32L432KC for quadrature encoder interfacing.
-
-Pin Selection for STM32L432KC
-
-For quadrature encoders, you'll want to use Timer input pins that support external interrupts or edge detection. Here are the best pin choices:
-
-Recommended Configuration:
-
-Channel A (Phase A): PA0 or PA1 (Timer 2 CH1/CH2, or use as GPIO with EXTI)
-Channel B (Phase B): PA3 or PA4 (Timer 2 CH3/CH4, or use as GPIO with EXTI)
-Index (optional): PB3, PB4, or any GPIO pin
-
-Why these pins?
-
-They can trigger multiple external interrupts (EXTI0-EXTI15)
-Timer 2 has 4 channels for flexible encoder counting
-Easy access to SYSCFG for interrupt routing
-
-Here's a complete interrupt handler implementation:
-
-c
-#include "stm32l4xx_hal.h"
-
-// Encoder state tracking
-volatile int32_t encoder_count = 0;
-volatile int32_t encoder_velocity = 0;
-uint32_t last_time = 0;
-
-// GPIO and EXTI initialization
-void encoder_init(void) {
-    GPIO_InitTypeDef GPIO_InitStruct = {0};
-    
-    // Enable GPIOA clock
-    __HAL_RCC_GPIOA_CLK_ENABLE();
-    
-    // Configure PA0 (Channel A) and PA3 (Channel B) as inputs with pull-ups
-    GPIO_InitStruct.Pin = GPIO_PIN_0 | GPIO_PIN_3;
-    GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING_FALLING;  // Trigger on both edges
-    GPIO_InitStruct.Pull = GPIO_PULLUP;
-    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
-    HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
-    
-    // Enable and configure EXTI interrupts
-    HAL_NVIC_SetPriority(EXTI0_IRQn, 0, 0);
-    HAL_NVIC_EnableIRQ(EXTI0_IRQn);
-    
-    HAL_NVIC_SetPriority(EXTI3_IRQn, 0, 0);
-    HAL_NVIC_EnableIRQ(EXTI3_IRQn);
-}
-
-// Interrupt handler for Channel A (PA0)
-void EXTI0_IRQHandler(void) {
-    HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_0);
-}
-
-// Interrupt handler for Channel B (PA3)
-void EXTI3_IRQHandler(void) {
-    HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_3);
-}
-
-// Callback from HAL when interrupt occurs
-void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
-    if (GPIO_Pin == GPIO_PIN_0 || GPIO_Pin == GPIO_PIN_3) {
-        uint8_t phase_a = HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_0);
-        uint8_t phase_b = HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_3);
-        
-        // Quadrature decoding logic
-        static uint8_t last_a = 0, last_b = 0;
-        
-        if (phase_a != last_a) {
-            // Channel A changed
-            if (phase_a == phase_b) {
-                encoder_count++;  // Forward
-            } else {
-                encoder_count--;  // Reverse
-            }
-        } else if (phase_b != last_b) {
-            // Channel B changed
-            if (phase_a != phase_b) {
-                encoder_count++;  // Forward
-            } else {
-                encoder_count--;  // Reverse
-            }
-        }
-        
-        last_a = phase_a;
-        last_b = phase_b;
-        
-        // Optional: Track velocity
-        uint32_t current_time = HAL_GetTick();
-        if (current_time - last_time > 10) {
-            last_time = current_time;
-        }
-    }
-}
-Alternative: Using Timer Encoder Mode (Recommended for precision)
-
-If you want better performance with less CPU overhead, use STM32's Timer Encoder Mode:
-
-c
-void encoder_timer_init(void) {
-    TIM_HandleTypeDef htim2;
-    TIM_Encoder_InitTypeDef sConfig = {0};
-    GPIO_InitTypeDef GPIO_InitStruct = {0};
-    
-    // Enable GPIOA and Timer2 clock
-    __HAL_RCC_GPIOA_CLK_ENABLE();
-    __HAL_RCC_TIM2_CLK_ENABLE();
-    
-    // Configure PA0 and PA1 (Timer 2 channels)
-    GPIO_InitStruct.Pin = GPIO_PIN_0 | GPIO_PIN_1;
-    GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-    GPIO_InitStruct.Pull = GPIO_PULLUP;
-    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
-    GPIO_InitStruct.Alternate = GPIO_AF1_TIM2;
-    HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
-    
-    // Timer configuration
-    htim2.Instance = TIM2;
-    htim2.Init.Prescaler = 0;
-    htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
-    htim2.Init.Period = 0xFFFFFFFF;  // 32-bit counter
-    htim2.Init.ClockDivision = TIM_CLOCKDIVISION_ID1;
-    htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
-    
-    // Encoder mode: counts on both edges of both channels
-    sConfig.EncoderMode = TIM_ENCODERMODE_TI12;
-    sConfig.IC1Polarity = TIM_ICPOLARITY_RISING;
-    sConfig.IC1Selection = TIM_ICSELECTION_DIRECTTI;
-    sConfig.IC1Prescaler = TIM_ICPSC_DIV1;
-    sConfig.IC1Filter = 0;
-    sConfig.IC2Polarity = TIM_ICPOLARITY_RISING;
-    sConfig.IC2Selection = TIM_ICSELECTION_DIRECTTI;
-    sConfig.IC2Prescaler = TIM_ICPSC_DIV1;
-    sConfig.IC2Filter = 0;
-    
-    HAL_TIM_Encoder_Init(&htim2, &sConfig);
-    HAL_TIM_Encoder_Start(&htim2, TIM_CHANNEL_1);
-    HAL_TIM_Encoder_Start(&htim2, TIM_CHANNEL_2);
-}
-
-// Get encoder count (counts every edge)
-int32_t get_encoder_count(void) {
-    return (int32_t)__HAL_TIM_GET_COUNTER(&htim2);
-}
-
-// Reset counter
-void reset_encoder_count(void) {
-    __HAL_TIM_SET_COUNTER(&htim2, 0);
-}
-Key Recommendations
-Use Timer Encoder Mode for production—it's hardware-based and more reliable
-Pull-up resistors recommended (though internal pull-ups can work)
-Debouncing filter: Set IC1Filter/IC2Filter to 0xF for noisy encoders
-Pin selection: PA0/PA1 (or PA0/PA3) are simplest for timer-based counting
-Interrupt priority: Keep encoder interrupts high priority (0-1) if using EXTI method
-
-Would you like me to expand on debouncing, velocity calculation, or integration with your main application loop?
-
-</details>
-
-### Summary
-
-AI's answer was decent. However, it used HAL instead of CMSIS, so I can't use it directly. Its decoding logic and mine were the same where both pins were read on every edge and then compared. AI picked TIM2 in encoder mode to count in hardware where I used TIM16 for the 1 s delay and did the counting with interrupts. Overall, it brought up good ideas like encoder mode and input noise filtering, but I had to understand double-check everything against the datasheet which honestly takes up more time than just doing it myself.
+<!-- TODO: add the model used, the prompt/response, and a summary, like the earlier labs -->

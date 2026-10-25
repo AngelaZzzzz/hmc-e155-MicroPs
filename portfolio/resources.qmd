@@ -1,10 +1,17 @@
 ---
 title: "Resources"
-listing:
-  contents: resources
-  sort: "date desc"
-  type: default
-  categories: false
+subtitle: "Links and references I use."
+toc: false
 ---
 
-Here is the [E155 Course Website](https://hmc-e155.github.io/).
+::: {.resource-grid}
+::: {.resource-card}
+#### [E155 Course Website](https://hmc-e155.github.io/)
+Course materials, lab handouts, and tutorials for E155 at Harvey Mudd College.
+:::
+
+::: {.resource-card}
+#### [Project Repository](https://github.com/AngelaZzzzz/hmc-e155-MicroPs)
+Source code for all of the labs and this website.
+:::
+:::

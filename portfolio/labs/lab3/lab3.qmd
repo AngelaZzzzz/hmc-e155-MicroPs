@@ -4,8 +4,11 @@ description: "Reading a 4x4 matrix keypad on the UPduino v3.1 FPGA with debounci
 author: "Angela Zheng"
 date: "9/22/2026"
 categories:
-  - lab
+  - FPGA
+  - SystemVerilog
+  - FSM
 draft: false
+image: images/lab3_block_diagram_top_level.jpg
 ---
 
 ## Introduction

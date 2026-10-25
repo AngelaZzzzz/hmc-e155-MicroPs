@@ -1,8 +1,12 @@
 ---
-title: "E155 Blog"
+title: "Blog"
+subtitle: "Weekly reflections and notes from the lab bench."
+toc: false
 listing:
   contents: posts
   sort: "date desc"
   type: default
-  categories: false
+  categories: true
+  date-format: "MMMM D, YYYY"
+  fields: [date, title, description, categories, reading-time]
 ---

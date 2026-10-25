@@ -4,8 +4,10 @@ description: "Driving a dual seven-segment display as well as a keypad scanning 
 author: "Angela Zheng"
 date: "9/14/2026"
 categories:
-  - lab
+  - FPGA
+  - SystemVerilog
 draft: false
+image: images/seven_segment_demo.jpg
 ---
 
 ## Introduction

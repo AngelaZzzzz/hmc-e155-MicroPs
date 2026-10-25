@@ -4,8 +4,11 @@ description: "Measuring the speed and direction of a DC motor by reading a quadr
 author: "Angela Zheng"
 date: "10/5/2026"
 categories:
-  - lab
+  - STM32
+  - C
+  - Interrupts
 draft: false
+image: images/lab5_interrupt_oscope.png
 ---
 
 ## Introduction
