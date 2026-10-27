@@ -87,7 +87,7 @@ The DS1722's `VDDD`, `VDDA` and `SERMODE` pins are all connected to the MCU's 3.
 
 ![Figure 2: Temperature read SPI transaction.](images/lab6_SPI.jpg){width=95% fig-align="center"}
 
-Figure 2 shows one full temperature read SPI transaction. Channel 1 (yellow) is `CE`, 2 (green) is `SCK`, 3 (blue) is `MISO`, and 4 (pink) is `MOSI`. We can see that the first time CE is high, MOSI sends address `0x02` in the first 8 clock cycles and the DS1722 replies on MISO with the temperature MSB `0x17` (23 °C) in the second clock cycle. In the second time CE is high, MOSI sends `0x01` in the first 8 clock cycles and the DS1722 replies with the LSB `0x20` (0.125 °C) in the second 8 clock cycles. Combining the MSB and LSB, we get a temperature reading of 23.125 °C.
+Figure 2 shows one full temperature read SPI transaction. Channel 1 (yellow) is `CE`, 2 (green) is `SCK`, 3 (blue) is `MISO`, and 4 (pink) is `MOSI`. We can see that the first time CE is high, MOSI sends address `0x02` in the first 8 clock cycles and the DS1722 replies on MISO with the temperature MSB `0x17` (23 °C) in the second clock cycle. In the second time CE is high, MOSI sends `0x01` in the first 8 clock cycles and the DS1722 replies with the LSB `0x20` (0.125 °C) in the second 8 clock cycles. Combining the MSB and LSB, we get a temperature reading of 23.125 °C. And as for the clock period, we can see on the oscope trace that each grid is 11.6 microsecond, and we have approximately 4 clock cycles per grid, making each clock period around 2.9 microsecond. This indicates a clock of around 344 kHz, which is less than 5 MHz required by the DS1722, satisfying timing requirements.
 
 ## Results and Discussion
 
