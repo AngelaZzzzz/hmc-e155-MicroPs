@@ -13,7 +13,7 @@ image: images/Lab6_Webpage.png
 
 ## Introduction
 
-The goal of this lab was to build a simple Internet of Things (IoT) device. An ESP8266 WiFi
+The goal of this lab is to build a simple Internet of Things (IoT) device. An ESP8266 WiFi
 module hosts a web page that lets a user turn an LED on and off (on `PA6`) and view the current room
 temperature. The STM32L432KC MCU receives data from the temperature sensor via SPI, 
 generates the HTML page, and sends data to the ESP8266 WiFI module via UART, which forwards it
@@ -26,15 +26,16 @@ and 4 for 12 bits.
 
 ## Design and Testing Methodology
 
-The GPIO, RCC, FLASH, TIM, and USART libraries and the ESP8266 web server code come from the
+The GPIO, RCC, FLASH, TIM, and USART libraries and the ESP8266 web server code are from
 [Lab 6 starter code](https://github.com/HMC-E155/hmc-e155/tree/main/lab/lab06). I wrote the SPI driver (`STM32L432KC_SPI.c/h`), the DS1722 driver
-(`DS1722.c/h`), and the request handling and web page generation in `main.c`.
+(`DS1722.c/h`), and the html request handler as well as the web page generator in `main.c`.
 
 ### ESP8266–MCU interface
 
-The ESP8266 is connected to `USART1` on the MCU, with the MCU TX (`PA9`) going to
-ESP RX and MCU RX (`PA10`) going to ESP TX. Each time a browser loads the page, the ESP8266 sends
+The ESP8266 interfaces with the MCU using `USART1`, with the MCU TX (`PA9`) connected to
+ESP's RX and MCU RX (`PA10`) connected to ESP's TX. Each time a browser loads the page, the ESP8266 sends
 the most recent request as `/REQ:<tag>\n`, and the main loop 
+
 1. Reads characters from the UART until it sees `\n`.
 2. Checks the request for a resolution tag (`res8` to `res12`) and reconfigures the DS1722 if
    one is present.
@@ -44,23 +45,17 @@ the most recent request as `/REQ:<tag>\n`, and the main loop
 
 ### SPI driver
 
-The SPI driver initializes `SPI1` in the following way:
+The SPI driver initializes SPI1 using `initSPI(br, cpol, cpha)`:
 
-`initSPI(br, cpol, cpha)` configures
-- **Pins:** `SCK` on `PB3`, `MISO` on `PB4` and `MOSI` on `PB5`, all set to alternate
-  function 5. The chip enable `CE` is on `PB1`.
-- **`CR1`:** master mode, software slave management (`SSM`, `SSI`), MSB first, and sets the baud
+- Pin assignments: assigns `SCK` to `PB3`, `MISO` to `PB4` and `MOSI` to `PB5`, and sets them all to alternate function 5. The chip enable `CE` is assigned to `PB1`.
+- `CR1`: enables master mode, software slave management (`SSM`, `SSI`), MSB first, and sets the baud
   rate, polarity, and phase according to the arguments.
-- **`CR2`:** 8-bit data size (`DS = 0b0111`) with `FRXTH` set, so `RXNE` flags after a single byte.
+- `CR2`: sets an 8-bit data size (`DS = 0b0111`) and `FRXTH`, so `RXNE` flags after a single byte.
 
-In `main.c`, The DS1722 is initialized with `initSPI(0b111, 0, 1)`:
+In `main.c`, The DS1722 is initialized with `initSPI(0b111, 0, 1)`. This means that `BR = 0b111`, dividing the 80 MHz clock by 256, producing a **312.5 kHz SCK**. This works because it's under the DS1722's 5 MHz maximum. `CPOL = 0, CPHA = 1` configures data to change on the rising edge of SCK and sampled on the falling edge.
 
-- `BR = 0b111` divides the 80 MHz clock by 256, giving a **312.5 kHz SCK**, which is under the
-  DS1722's 5 MHz maximum.
-- `CPOL = 0, CPHA = 1` configures data to change on the rising edge of SCK and sampled on the falling edge.
-
-`spiSendReceive()` waits for `TXE`, writes one byte to `DR`, waits for `RXNE`, and then returns the
-received byte. `DR` is accessed through an 8-bit pointer so that each write sends one byte only.
+The SPI driver sends and receives data using `spiSendReceive()`: it first waits for `TXE`, writes one byte to `DR`, waits for `RXNE`, and then returns the
+received byte. `DR` is then accessed through an 8-bit pointer so that each write sends one byte only.
 
 ### DS1722 driver
 
@@ -85,12 +80,10 @@ The source code for the project can be found in the associated [GitHub repositor
 
 ![Figure 1: Schematic of the MCU, ESP8266, DS1722 and LED.](images/lab6_schematic.jpg){width=90% fig-align="center"}
 
-The DS1722's `VDDD`, `VDDA` and `SERMODE` pins are tied to the MCU's 3.3 V supply. Pulling
-`SERMODE` high selects SPI mode on the temperature sensor. `CE`, `SCK`, `SDO` and `SDI` connect to `PB1`, `PB3`, `PB4`
-(MISO) and `PB5` (MOSI). The ESP8266 is powered using 3.3 V, with its RX and TX
-connected to the MCU's TX and RX. The LED is driven from `PA6` through a 1 kΩ current-limiting resistor.
+The DS1722's `VDDD`, `VDDA` and `SERMODE` pins are all connected to the MCU's 3.3 V supply. Pulling
+`SERMODE` high selects SPI mode on the temperature sensor. `CE`, `SCK`, `SDO` and `SDI` connect to `PB1`, `PB3`, `PB4`, and `PB5`, respectively. The ESP8266 is powered using 3.3 V, with its RX and TX connected to the MCU's TX and RX. The LED is driven from `PA6` through a 1 kΩ current-limiting resistor.
 
-### SPI logic analyzer capture
+### SPI Timing
 
 ![Figure 2: Temperature read SPI transaction.](images/lab6_SPI.jpg){width=95% fig-align="center"}
 
@@ -100,12 +93,12 @@ Figure 2 shows one full temperature read SPI transaction. Channel 1 (yellow) is 
 
 ![Figure 3: The web page served by the ESP8266, showing the LED status and a 12-bit temperature reading of 23.1875 °C.](images/Lab6_Webpage.png){width=90% fig-align="center"}
 
-The device works as intended. Loading `http://192.168.4.1/` shows the LED controls, the LED
+The device works as intended. After connecting to WiFi provided by the ESP8266, the webpage at `http://192.168.4.1/` shows the LED controls, the LED
 status, the current temperature, and the resolution buttons. Clicking *Turn the LED on!* or
 *Turn the LED off!* changes both the LED and its status text accordingly. The temperature reads about 23 °C,
 which is a reasonable room temperature.
 
-Moreover, the logic analyzer capture confirms the SPI timing. We verified that `CE` stays high for the whole two-byte
+Moreover, we have verified the SPI timing via the logic analyzer capture. Specifically, `CE` stays high for the whole two-byte
 transaction, data changes on the rising edge of `SCK`, and the sensor's MISO bytes match the temperature on the web page.
 
 The design meets all of the proficiency and execellence requirements.
@@ -1301,4 +1294,10 @@ Clock. The prescaler assumes PCLK2 is 4 MHz. If you change the system clock, adj
 
 ### Summary
 
-AI's website design is very meticulous, much better than what I have even envisioned.
+![Figure 4: The AI-generated web portal reading the DS1722.](images/lab6_AI_website.png){width=90% fig-align="center"}
+
+AI's website design is very meticulous, much better than what I had even envisioned. It included a much prettier user interface, included everything essential and even added temperature unit conversion and light/dark page style conversion.
+
+The SPI function AI wrote on the other hand was less reliable. It drove CE active low when the DS1722's CE is active high,
+and swapped the MSB (0x02) and LSB (0x01) addresses. Moreover, without enough context, it put MISO on PA6 which is my LED pin, further preventing the code it generator from working when plugged directly into my project. Therefore, I think the LLM is great for front-end design, but for low-level drivers
+it is still necessary to verify every register and design choice.
