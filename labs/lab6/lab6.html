@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 <meta name="author" content="Angela Zheng">
-<meta name="dcterms.date" content="2026-10-24">
+<meta name="dcterms.date" content="2026-10-26">
 <meta name="description" content="Building an internet-connected device that toggles an LED and reports room temperature from a DS1722 SPI sensor, served by an ESP8266 web server over UART from the STM32L432KC">
 
 <title>Lab 6: The Internet of Things and Serial Peripheral Interface – Angela Zheng</title>
@@ -335,11 +335,15 @@ ul.task-list li input[type="checkbox"] {
   <li><a href="#technical-documentation" id="toc-technical-documentation" class="nav-link" data-scroll-target="#technical-documentation">Technical Documentation</a>
   <ul class="collapse">
   <li><a href="#schematic" id="toc-schematic" class="nav-link" data-scroll-target="#schematic">Schematic</a></li>
-  <li><a href="#spi-logic-analyzer-captures" id="toc-spi-logic-analyzer-captures" class="nav-link" data-scroll-target="#spi-logic-analyzer-captures">SPI logic analyzer captures</a></li>
+  <li><a href="#spi-timing" id="toc-spi-timing" class="nav-link" data-scroll-target="#spi-timing">SPI Timing</a></li>
   </ul></li>
   <li><a href="#results-and-discussion" id="toc-results-and-discussion" class="nav-link" data-scroll-target="#results-and-discussion">Results and Discussion</a></li>
   <li><a href="#conclusion" id="toc-conclusion" class="nav-link" data-scroll-target="#conclusion">Conclusion</a></li>
-  <li><a href="#ai-prototype-summary" id="toc-ai-prototype-summary" class="nav-link" data-scroll-target="#ai-prototype-summary">AI Prototype Summary</a></li>
+  <li><a href="#ai-prototype-summary" id="toc-ai-prototype-summary" class="nav-link" data-scroll-target="#ai-prototype-summary">AI Prototype Summary</a>
+  <ul class="collapse">
+  <li><a href="#ai-chat-transcript" id="toc-ai-chat-transcript" class="nav-link" data-scroll-target="#ai-chat-transcript">AI Chat Transcript</a></li>
+  <li><a href="#summary" id="toc-summary" class="nav-link" data-scroll-target="#summary">Summary</a></li>
+  </ul></li>
   </ul>
 </nav>
     </div>
@@ -376,7 +380,7 @@ ul.task-list li input[type="checkbox"] {
     <div>
     <div class="quarto-title-meta-heading">Published</div>
     <div class="quarto-title-meta-contents">
-      <p class="date">October 24, 2026</p>
+      <p class="date">October 26, 2026</p>
     </div>
   </div>
   
@@ -390,21 +394,15 @@ ul.task-list li input[type="checkbox"] {
 
 <section id="introduction" class="level2">
 <h2 class="anchored" data-anchor-id="introduction">Introduction</h2>
-<p>The goal of this lab was to build a simple Internet of Things (IoT) device. An ESP8266 WiFi module hosts a web page that lets a user turn an LED on and off and view the current room temperature. The STM32L432KC MCU does the real work:</p>
-<ul>
-<li>It receives web requests from the ESP8266 over a <strong>125000 baud UART</strong> link.</li>
-<li>It toggles the LED on <code>PA6</code>.</li>
-<li>It reads the temperature from a <strong>DS1722 digital thermometer over SPI</strong>, using an SPI driver I wrote with the CMSIS device templates in <code>stm32l432xx.h</code>.</li>
-<li>It generates the HTML page and sends it back to the ESP8266, which forwards it to the browser.</li>
-</ul>
-<p>Beyond the required LED control and temperature display, the web page also lets the user change the sensor’s resolution from 8 to 12 bits. The temperature is displayed with as many decimal places as the selected resolution provides.</p>
+<p>The goal of this lab is to build a simple Internet of Things (IoT) device. An ESP8266 WiFi module hosts a web page that lets a user turn an LED on and off (on <code>PA6</code>) and view the current room temperature. The STM32L432KC MCU receives data from the temperature sensor via SPI, generates the HTML page, and sends data to the ESP8266 WiFI module via UART, which forwards it to the browser.</p>
+<p>Beyond the LED control and temperature display, the web page also lets the user change the sensor’s resolution from 8 to 12 bits. The temperature is displayed with as many decimal places as the selected resolution provides, 0 for 8 bits, 1 for 9 bits, 2 for 10 bits, 3 for 11 bits, and 4 for 12 bits.</p>
 </section>
 <section id="design-and-testing-methodology" class="level2">
 <h2 class="anchored" data-anchor-id="design-and-testing-methodology">Design and Testing Methodology</h2>
-<p>The GPIO, RCC, FLASH, TIM, and USART libraries and the ESP8266 web server code come from the Lab 6 starter code. I wrote the SPI driver (<code>STM32L432KC_SPI.c/h</code>), the DS1722 driver (<code>DS1722.c/h</code>), and the request handling and web page generation in <code>main.c</code>.</p>
+<p>The GPIO, RCC, FLASH, TIM, and USART libraries and the ESP8266 web server code are from <a href="https://github.com/HMC-E155/hmc-e155/tree/main/lab/lab06">Lab 6 starter code</a>. I wrote the SPI driver (<code>STM32L432KC_SPI.c/h</code>), the DS1722 driver (<code>DS1722.c/h</code>), and the html request handler as well as the web page generator in <code>main.c</code>.</p>
 <section id="esp8266mcu-interface" class="level3">
 <h3 class="anchored" data-anchor-id="esp8266mcu-interface">ESP8266–MCU interface</h3>
-<p>The ESP8266 is connected to <code>USART1</code> on the MCU, with TX and RX crossed: MCU TX (<code>PA9</code>) goes to ESP RX and MCU RX (<code>PA10</code>) goes to ESP TX. Each time a browser loads the page, the ESP8266 sends the most recent request as <code>/REQ:&lt;tag&gt;\n</code> (for example, <code>/REQ:ledon\n</code>). The main loop:</p>
+<p>The ESP8266 interfaces with the MCU using <code>USART1</code>, with the MCU TX (<code>PA9</code>) connected to ESP’s RX and MCU RX (<code>PA10</code>) connected to ESP’s TX. Each time a browser loads the page, the ESP8266 sends the most recent request as <code>/REQ:&lt;tag&gt;\n</code>, and the main loop</p>
 <ol type="1">
 <li>Reads characters from the UART until it sees <code>\n</code>.</li>
 <li>Checks the request for a resolution tag (<code>res8</code> to <code>res12</code>) and reconfigures the DS1722 if one is present.</li>
@@ -412,154 +410,61 @@ ul.task-list li input[type="checkbox"] {
 <li>Checks the request for <code>ledon</code> / <code>ledoff</code> and drives <code>PA6</code>.</li>
 <li>Sends the full HTML page, from <code>&lt;!DOCTYPE html&gt;</code> to <code>&lt;/html&gt;</code>, back over the UART.</li>
 </ol>
-<p>When checking for resolution tags, the two-digit tags (<code>res10</code>, <code>res11</code>, <code>res12</code>) are tested before <code>res8</code>/<code>res9</code>, so a request is never matched to the wrong resolution.</p>
 </section>
 <section id="spi-driver" class="level3">
 <h3 class="anchored" data-anchor-id="spi-driver">SPI driver</h3>
-<p><code>initSPI(br, cpol, cpha)</code> configures <code>SPI1</code> directly through its memory-mapped registers:</p>
+<p>The SPI driver initializes SPI1 using <code>initSPI(br, cpol, cpha)</code>:</p>
 <ul>
-<li><strong>Pins:</strong> <code>SCK</code> on <code>PB3</code>, <code>MISO</code> on <code>PB4</code> and <code>MOSI</code> on <code>PB5</code>, all set to alternate function 5. The chip enable <code>CE</code> on <code>PB1</code> is a regular GPIO output, because the DS1722’s chip enable is <strong>active high</strong>, unlike the active-low NSS of the SPI peripheral.</li>
-<li><strong><code>CR1</code>:</strong> master mode, software slave management (<code>SSM</code>, <code>SSI</code>), MSB first, and the baud rate, polarity, and phase passed in as arguments.</li>
-<li><strong><code>CR2</code>:</strong> 8-bit data size (<code>DS = 0b0111</code>) with <code>FRXTH</code> set, so <code>RXNE</code> flags after a single byte.</li>
+<li>Pin assignments: assigns <code>SCK</code> to <code>PB3</code>, <code>MISO</code> to <code>PB4</code> and <code>MOSI</code> to <code>PB5</code>, and sets them all to alternate function 5. The chip enable <code>CE</code> is assigned to <code>PB1</code>.</li>
+<li><code>CR1</code>: enables master mode, software slave management (<code>SSM</code>, <code>SSI</code>), MSB first, and sets the baud rate, polarity, and phase according to the arguments.</li>
+<li><code>CR2</code>: sets an 8-bit data size (<code>DS = 0b0111</code>) and <code>FRXTH</code>, so <code>RXNE</code> flags after a single byte.</li>
 </ul>
-<p>The DS1722 is initialized with <code>initSPI(0b111, 0, 1)</code>:</p>
-<ul>
-<li><code>BR = 0b111</code> divides the 80 MHz clock by 256, giving a <strong>312.5 kHz SCK</strong>, well under the DS1722’s 5 MHz maximum.</li>
-<li><code>CPOL = 0, CPHA = 1</code> matches the DS1722 SPI timing, where data changes on the rising edge of SCK and is sampled on the falling edge.</li>
-</ul>
-<p><code>spiSendReceive()</code> waits for <code>TXE</code>, writes one byte to <code>DR</code>, waits for <code>RXNE</code>, and returns the received byte. <code>DR</code> is accessed through an 8-bit pointer so that each write sends exactly one byte rather than packing two.</p>
+<p>In <code>main.c</code>, The DS1722 is initialized with <code>initSPI(0b111, 0, 1)</code>. This means that <code>BR = 0b111</code>, dividing the 80 MHz clock by 256, producing a <strong>312.5 kHz SCK</strong>. This works because it’s under the DS1722’s 5 MHz maximum. <code>CPOL = 0, CPHA = 1</code> configures data to change on the rising edge of SCK and sampled on the falling edge.</p>
+<p>The SPI driver sends and receives data using <code>spiSendReceive()</code>: it first waits for <code>TXE</code>, writes one byte to <code>DR</code>, waits for <code>RXNE</code>, and then returns the received byte. <code>DR</code> is then accessed through an 8-bit pointer so that each write sends one byte only.</p>
 </section>
 <section id="ds1722-driver" class="level3">
 <h3 class="anchored" data-anchor-id="ds1722-driver">DS1722 driver</h3>
-<p>Every DS1722 transaction is two bytes inside one chip-enable window: an address byte followed by a data byte.</p>
-<table class="caption-top table">
-<colgroup>
-<col style="width: 25%">
-<col style="width: 25%">
-<col style="width: 25%">
-<col style="width: 25%">
-</colgroup>
-<thead>
-<tr class="header">
-<th>Function</th>
-<th>Address</th>
-<th>Data</th>
-<th>Purpose</th>
-</tr>
-</thead>
-<tbody>
-<tr class="odd">
-<td><code>initDS1722(res)</code></td>
-<td><code>0x80</code> (config write)</td>
-<td><code>0xE0 + ((res − 8) &lt;&lt; 1)</code></td>
-<td>Continuous conversion at the selected resolution</td>
-</tr>
-<tr class="even">
-<td><code>readTempRaw()</code></td>
-<td><code>0x02</code> (temp MSB)</td>
-<td><code>0x00</code> (dummy)</td>
-<td>Integer part, °C (two’s complement)</td>
-</tr>
-<tr class="odd">
-<td></td>
-<td><code>0x01</code> (temp LSB)</td>
-<td><code>0x00</code> (dummy)</td>
-<td>Fractional part, in 1/16 °C steps at 12-bit</td>
-</tr>
-</tbody>
-</table>
-<p><code>readTempRaw()</code> combines the two bytes into a signed 16-bit value. The temperature in °C is then <code>raw / 256</code>.</p>
+<p>Every DS1722 transaction is an address byte followed by a data byte inside one chip-enable window. <code>readTempRaw()</code> combines the two bytes into a signed 16-bit value. The temperature in °C is then <code>raw / 256</code>.</p>
 </section>
 <section id="testing" class="level3">
 <h3 class="anchored" data-anchor-id="testing">Testing</h3>
 <ol type="1">
-<li><strong>SPI without the sensor.</strong> Before wiring the DS1722, I probed <code>CE</code>, <code>SCK</code>, <code>MOSI</code> and <code>MISO</code> with the logic analyzer. I checked that the configuration write and the temperature reads produced the right addresses, data, clock polarity and phase, and chip-enable framing.</li>
-<li><strong>SPI with the sensor.</strong> With the DS1722 connected, I decoded the MISO bytes from the scope captures and compared them to the temperature shown on the web page.</li>
-<li><strong>Web page.</strong> I connected to the ESP8266’s access point, loaded <code>http://192.168.4.1/</code>, and checked that the LED buttons toggled the LED and its status text, and that each resolution button changed the number of decimal places shown.</li>
+<li><strong>SPI without the temperature sensor.</strong> Before wiring the DS1722, I probed <code>CE</code>, <code>SCK</code>, <code>MOSI</code> and <code>MISO</code> with an oscop, using its logic analyzer function. I checked that the configuration write and the temperature reads produced the right addresses, data, clock polarity and phase, and chip-enable framing.</li>
+<li><strong>SPI with the sensor.</strong> With the DS1722 connected, I probed the SPI channels again and checked that the MOSI and MISO bytes are as expected.</li>
+<li><strong>Web page.</strong> I connected to the ESP8266’s access point, loaded <code>http://192.168.4.1/</code>, and checked that the temperature shown is reasonable, the LED buttons toggled the LED and its status text, and that each resolution button changed the number of decimal places shown.</li>
 </ol>
 </section>
 </section>
 <section id="technical-documentation" class="level2">
 <h2 class="anchored" data-anchor-id="technical-documentation">Technical Documentation</h2>
 <p>The source code for the project can be found in the associated <a href="https://github.com/AngelaZzzzz/hmc-e155-MicroPs/tree/main/labs/lab6/">GitHub repository</a>.</p>
-<!-- TODO: add the block diagram / flowchart, e.g.
-![Figure 1: Flowchart of the main loop.](images/lab6_flow_chart.jpg){width=90% fig-align="center"}
--->
 <section id="schematic" class="level3">
 <h3 class="anchored" data-anchor-id="schematic">Schematic</h3>
-<!-- TODO: add the schematic, e.g.
-![Figure 2: Schematic of the MCU, ESP8266, DS1722 and LED.](images/lab6_schematic.jpg){width=90% fig-align="center"}
--->
-<p>The DS1722 is powered from 3.3 V, with its <code>SERMODE</code> pin tied high to select SPI mode. <code>CE</code>, <code>SCLK</code>, <code>SDI</code> and <code>SDO</code> connect to <code>PB1</code>, <code>PB3</code>, <code>PB5</code> (MOSI) and <code>PB4</code> (MISO). The ESP8266 is powered from 3.3 V and connects to <code>PA9</code>/<code>PA10</code>. The LED is driven from <code>PA6</code> through a current-limiting resistor. The DIP switches between the MCU and the FPGA are open, so the FPGA cannot drive any of these pins.</p>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="images/lab6_schematic.jpg" class="lightbox" data-gallery="quarto-lightbox-gallery-1" title="Figure 1: Schematic of the MCU, ESP8266, DS1722 and LED."><img src="images/lab6_schematic.jpg" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:90.0%" alt="Figure 1: Schematic of the MCU, ESP8266, DS1722 and LED."></a></p>
+</figure>
+</div>
+<figcaption>Figure 1: Schematic of the MCU, ESP8266, DS1722 and LED.</figcaption>
+</figure>
+</div>
+<p>The DS1722’s <code>VDDD</code>, <code>VDDA</code> and <code>SERMODE</code> pins are all connected to the MCU’s 3.3 V supply. Pulling <code>SERMODE</code> high selects SPI mode on the temperature sensor. <code>CE</code>, <code>SCK</code>, <code>SDO</code> and <code>SDI</code> connect to <code>PB1</code>, <code>PB3</code>, <code>PB4</code>, and <code>PB5</code>, respectively. The ESP8266 is powered using 3.3 V, with its RX and TX connected to the MCU’s TX and RX. The LED is driven from <code>PA6</code> through a 1 kΩ current-limiting resistor.</p>
 </section>
-<section id="spi-logic-analyzer-captures" class="level3">
-<h3 class="anchored" data-anchor-id="spi-logic-analyzer-captures">SPI logic analyzer captures</h3>
-<p>In each capture, channel 1 (yellow) is <code>CE</code>, 2 (green) is <code>SCK</code>, 3 (blue) is <code>MISO</code>, and 4 (pink) is <code>MOSI</code>.</p>
+<section id="spi-timing" class="level3">
+<h3 class="anchored" data-anchor-id="spi-timing">SPI Timing</h3>
 <div class="quarto-figure quarto-figure-center">
 <figure class="figure">
 <div class="quarto-figure quarto-figure-center">
 <figure class="figure">
-<p><a href="images/spiwrite_wo_temp_sensor.png" class="lightbox" data-gallery="quarto-lightbox-gallery-1" title="Figure 3: Configuration write without the sensor attached. MOSI sends address 0x80 followed by 0xE8 (continuous conversion, 12-bit resolution). MISO floats because no device is driving it."><img src="images/spiwrite_wo_temp_sensor.png" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:90.0%" alt="Figure 3: Configuration write without the sensor attached. MOSI sends address 0x80 followed by 0xE8 (continuous conversion, 12-bit resolution). MISO floats because no device is driving it."></a></p>
+<p><a href="images/lab6_SPI.jpg" class="lightbox" data-gallery="quarto-lightbox-gallery-2" title="Figure 2: Temperature read SPI transaction."><img src="images/lab6_SPI.jpg" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:95.0%" alt="Figure 2: Temperature read SPI transaction."></a></p>
 </figure>
 </div>
-<figcaption>Figure 3: Configuration write without the sensor attached. MOSI sends address <code>0x80</code> followed by <code>0xE8</code> (continuous conversion, 12-bit resolution). MISO floats because no device is driving it.</figcaption>
+<figcaption>Figure 2: Temperature read SPI transaction.</figcaption>
 </figure>
 </div>
-<div class="quarto-figure quarto-figure-center">
-<figure class="figure">
-<div class="quarto-figure quarto-figure-center">
-<figure class="figure">
-<p><a href="images/Lab6_SPI_Read.png" class="lightbox" data-gallery="quarto-lightbox-gallery-2" title="Figure 4: One call to readTempRaw() with the sensor attached: two back-to-back two-byte transactions (MSB, then LSB), each framed by its own CE pulse."><img src="images/Lab6_SPI_Read.png" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:90.0%" alt="Figure 4: One call to readTempRaw() with the sensor attached: two back-to-back two-byte transactions (MSB, then LSB), each framed by its own CE pulse."></a></p>
-</figure>
-</div>
-<figcaption>Figure 4: One call to <code>readTempRaw()</code> with the sensor attached: two back-to-back two-byte transactions (MSB, then LSB), each framed by its own CE pulse.</figcaption>
-</figure>
-</div>
-<div class="quarto-figure quarto-figure-center">
-<figure class="figure">
-<div class="quarto-figure quarto-figure-center">
-<figure class="figure">
-<p><a href="images/Lab6_SPI_Read1.png" class="lightbox" data-gallery="quarto-lightbox-gallery-3" title="Figure 5: Temperature MSB read. MOSI sends address 0x02, and the DS1722 replies on MISO with 0x17 = 23 °C."><img src="images/Lab6_SPI_Read1.png" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:90.0%" alt="Figure 5: Temperature MSB read. MOSI sends address 0x02, and the DS1722 replies on MISO with 0x17 = 23 °C."></a></p>
-</figure>
-</div>
-<figcaption>Figure 5: Temperature MSB read. MOSI sends address <code>0x02</code>, and the DS1722 replies on MISO with <code>0x17</code> = 23 °C.</figcaption>
-</figure>
-</div>
-<div class="quarto-figure quarto-figure-center">
-<figure class="figure">
-<div class="quarto-figure quarto-figure-center">
-<figure class="figure">
-<p><a href="images/Lab6_SPI_Read2.png" class="lightbox" data-gallery="quarto-lightbox-gallery-4" title="Figure 6: Temperature LSB read. MOSI sends address 0x01, and the DS1722 replies with 0x20 = 0.125 °C, the fractional part of the reading."><img src="images/Lab6_SPI_Read2.png" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:90.0%" alt="Figure 6: Temperature LSB read. MOSI sends address 0x01, and the DS1722 replies with 0x20 = 0.125 °C, the fractional part of the reading."></a></p>
-</figure>
-</div>
-<figcaption>Figure 6: Temperature LSB read. MOSI sends address <code>0x01</code>, and the DS1722 replies with <code>0x20</code> = 0.125 °C, the fractional part of the reading.</figcaption>
-</figure>
-</div>
-<details>
-<summary>
-Reads captured before the sensor was connected
-</summary>
-<div class="quarto-figure quarto-figure-center">
-<figure class="figure">
-<div class="quarto-figure quarto-figure-center">
-<figure class="figure">
-<p><a href="images/spiread_wo_temp_sensor.png" class="lightbox" data-gallery="quarto-lightbox-gallery-5" title="Figure 7: Temperature MSB read (0x02) without the sensor attached."><img src="images/spiread_wo_temp_sensor.png" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:90.0%" alt="Figure 7: Temperature MSB read (0x02) without the sensor attached."></a></p>
-</figure>
-</div>
-<figcaption>Figure 7: Temperature MSB read (<code>0x02</code>) without the sensor attached.</figcaption>
-</figure>
-</div>
-<div class="quarto-figure quarto-figure-center">
-<figure class="figure">
-<div class="quarto-figure quarto-figure-center">
-<figure class="figure">
-<p><a href="images/spiread2_wo_temp_sensor.png" class="lightbox" data-gallery="quarto-lightbox-gallery-6" title="Figure 8: Temperature LSB read (0x01) without the sensor attached."><img src="images/spiread2_wo_temp_sensor.png" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:90.0%" alt="Figure 8: Temperature LSB read (0x01) without the sensor attached."></a></p>
-</figure>
-</div>
-<figcaption>Figure 8: Temperature LSB read (<code>0x01</code>) without the sensor attached.</figcaption>
-</figure>
-</div>
-</details>
+<p>Figure 2 shows one full temperature read SPI transaction. Channel 1 (yellow) is <code>CE</code>, 2 (green) is <code>SCK</code>, 3 (blue) is <code>MISO</code>, and 4 (pink) is <code>MOSI</code>. We can see that the first time CE is high, MOSI sends address <code>0x02</code> in the first 8 clock cycles and the DS1722 replies on MISO with the temperature MSB <code>0x17</code> (23 °C) in the second clock cycle. In the second time CE is high, MOSI sends <code>0x01</code> in the first 8 clock cycles and the DS1722 replies with the LSB <code>0x20</code> (0.125 °C) in the second 8 clock cycles. Combining the MSB and LSB, we get a temperature reading of 23.125 °C.</p>
 </section>
 </section>
 <section id="results-and-discussion" class="level2">
@@ -568,27 +473,1206 @@ Reads captured before the sensor was connected
 <figure class="figure">
 <div class="quarto-figure quarto-figure-center">
 <figure class="figure">
-<p><a href="images/Lab6_Webpage.png" class="lightbox" data-gallery="quarto-lightbox-gallery-7" title="Figure 9: The web page served by the ESP8266, showing the LED status and a 12-bit temperature reading of 23.1875 °C."><img src="images/Lab6_Webpage.png" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:90.0%" alt="Figure 9: The web page served by the ESP8266, showing the LED status and a 12-bit temperature reading of 23.1875 °C."></a></p>
+<p><a href="images/Lab6_Webpage.png" class="lightbox" data-gallery="quarto-lightbox-gallery-3" title="Figure 3: The web page served by the ESP8266, showing the LED status and a 12-bit temperature reading of 23.1875 °C."><img src="images/Lab6_Webpage.png" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:90.0%" alt="Figure 3: The web page served by the ESP8266, showing the LED status and a 12-bit temperature reading of 23.1875 °C."></a></p>
 </figure>
 </div>
-<figcaption>Figure 9: The web page served by the ESP8266, showing the LED status and a 12-bit temperature reading of 23.1875 °C.</figcaption>
+<figcaption>Figure 3: The web page served by the ESP8266, showing the LED status and a 12-bit temperature reading of 23.1875 °C.</figcaption>
 </figure>
 </div>
-<p>The device works as intended. Loading <code>http://192.168.4.1/</code> shows the LED controls, the LED status, the current temperature, and the resolution buttons. Clicking <em>Turn the LED on!</em> or <em>Turn the LED off!</em> changes both the LED and its status text. The temperature reads about 23 °C, a reasonable room temperature.</p>
-<p>The logic analyzer captures confirm the SPI timing: <code>CE</code> stays high for the whole two-byte transaction, data changes on the rising edge of <code>SCK</code>, and the sensor’s MISO bytes match the temperature on the web page.</p>
-<p>The ESP8266 is slow, so a page sometimes takes a few seconds or a couple of reloads to appear. Also, because the page is only regenerated when it is requested, the temperature updates only when the page is refreshed or a button is clicked.</p>
-<p>The design meets all of the proficiency requirements. The adjustable-resolution controls go beyond the base specification.</p>
+<p>The device works as intended. After connecting to WiFi provided by the ESP8266, the webpage at <code>http://192.168.4.1/</code> shows the LED controls, the LED status, the current temperature, and the resolution buttons. Clicking <em>Turn the LED on!</em> or <em>Turn the LED off!</em> changes both the LED and its status text accordingly. The temperature reads about 23 °C, which is a reasonable room temperature.</p>
+<p>Moreover, we have verified the SPI timing via the logic analyzer capture. Specifically, <code>CE</code> stays high for the whole two-byte transaction, data changes on the rising edge of <code>SCK</code>, and the sensor’s MISO bytes match the temperature on the web page.</p>
+<p>The design meets all of the proficiency and execellence requirements.</p>
 </section>
 <section id="conclusion" class="level2">
 <h2 class="anchored" data-anchor-id="conclusion">Conclusion</h2>
-<p>The STM32L432KC parses web requests from the ESP8266 over UART, controls an LED, reads the DS1722 over a CMSIS-based SPI driver, and serves a dynamic HTML page with the LED state and the current temperature at a user-selectable resolution.</p>
-<p>I spent a total of <!-- TODO --> hours working on this lab.</p>
+<p>The STM32L432KC microcontroller parses web requests from the ESP8266 over UART, controls an LED, reads temperature from the DS1722 over a CMSIS-based SPI driver, and sends back to the ESP8266 with an HTML page with the LED state and the current temperature at a selectable resolution.</p>
+<p>I spent a total of 12 hours working on this lab.</p>
 </section>
 <section id="ai-prototype-summary" class="level2">
 <h2 class="anchored" data-anchor-id="ai-prototype-summary">AI Prototype Summary</h2>
-<!-- TODO: add the model used, the prompt/response, and a summary, like the earlier labs -->
+<p>Model used: <strong>Claude Haiku 5.5</strong></p>
+<section id="ai-chat-transcript" class="level3">
+<h3 class="anchored" data-anchor-id="ai-chat-transcript">AI Chat Transcript</h3>
+<details>
+<summary>
+User Prompt
+</summary>
+<p>I’m making a web portal to interface with a temperature sensor. Create a HTML page that looks good and is intuitive to show the temperature, control an LED, and change the precision of the readout.</p>
+</details>
+<details>
+<summary>
+AI Response
+</summary>
+<pre><code>&lt;!DOCTYPE html&gt;
+&lt;html lang="en"&gt;
+&lt;head&gt;
+&lt;meta charset="UTF-8"&gt;
+&lt;meta name="viewport" content="width=device-width, initial-scale=1.0"&gt;
+&lt;title&gt;Sensor Portal&lt;/title&gt;
+&lt;style&gt;
+  :root {
+    --bg: #0f1420;
+    --panel: #171f30;
+    --panel-border: #24304a;
+    --text: #e8edf7;
+    --muted: #8a96b0;
+    --accent: #4f8cff;
+    --accent-2: #7c5cff;
+    --good: #34d399;
+    --bad: #f87171;
+    --led-glow: #ffd166;
+    --radius: 16px;
+    --shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  }
+
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      --bg: #eef2f8;
+      --panel: #ffffff;
+      --panel-border: #dbe2ee;
+      --text: #1b2333;
+      --muted: #66728a;
+      --shadow: 0 10px 25px rgba(30, 50, 90, 0.08);
+    }
+  }
+  :root[data-theme="light"] {
+    --bg: #eef2f8;
+    --panel: #ffffff;
+    --panel-border: #dbe2ee;
+    --text: #1b2333;
+    --muted: #66728a;
+    --shadow: 0 10px 25px rgba(30, 50, 90, 0.08);
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    min-height: 100%;
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background:
+      radial-gradient(1200px 600px at 10% -10%, rgba(79, 140, 255, 0.18), transparent 60%),
+      radial-gradient(900px 500px at 110% 10%, rgba(124, 92, 255, 0.15), transparent 60%),
+      var(--bg);
+    color: var(--text);
+    padding: 24px 16px 48px;
+  }
+
+  .wrap {
+    max-width: 980px;
+    margin: 0 auto;
+  }
+
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+
+  header h1 {
+    font-size: 1.5rem;
+    margin: 0;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+
+  header p {
+    margin: 4px 0 0;
+    color: var(--muted);
+    font-size: 0.9rem;
+  }
+
+  .status {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    border-radius: 999px;
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    font-size: 0.85rem;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+
+  .dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--muted);
+    box-shadow: 0 0 0 0 currentColor;
+  }
+  .status.online .dot { background: var(--good); color: var(--good); animation: pulse 2s infinite; }
+  .status.offline .dot { background: var(--bad); }
+  .status.sim .dot { background: var(--accent); color: var(--accent); animation: pulse 2s infinite; }
+
+  @keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(79, 140, 255, 0.5); }
+    70% { box-shadow: 0 0 0 8px rgba(79, 140, 255, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(79, 140, 255, 0); }
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: 1.6fr 1fr;
+    gap: 20px;
+  }
+
+  @media (max-width: 760px) {
+    .grid { grid-template-columns: 1fr; }
+  }
+
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    border-radius: var(--radius);
+    padding: 22px;
+    box-shadow: var(--shadow);
+  }
+
+  .card h2 {
+    margin: 0 0 16px;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    font-weight: 600;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+  }
+
+  /* Temperature card */
+  .reading {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    margin: 6px 0 4px;
+  }
+
+  .temp-value {
+    font-size: clamp(3.5rem, 9vw, 5.5rem);
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.03em;
+    line-height: 1;
+    transition: color 0.4s ease;
+  }
+
+  .temp-unit {
+    font-size: 1.75rem;
+    font-weight: 600;
+    color: var(--muted);
+  }
+
+  .temp-meta {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+    color: var(--muted);
+    font-size: 0.9rem;
+    margin-bottom: 16px;
+  }
+
+  .trend {
+    font-weight: 600;
+  }
+  .trend.up { color: var(--bad); }
+  .trend.down { color: var(--accent); }
+  .trend.flat { color: var(--muted); }
+
+  .segmented {
+    display: inline-flex;
+    background: var(--bg);
+    border: 1px solid var(--panel-border);
+    border-radius: 10px;
+    padding: 3px;
+    gap: 2px;
+  }
+
+  .segmented button {
+    font: inherit;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--muted);
+    background: transparent;
+    border: none;
+    padding: 7px 12px;
+    border-radius: 7px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    min-width: 42px;
+  }
+
+  .segmented button:hover { color: var(--text); }
+
+  .segmented button[aria-pressed="true"] {
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    color: #fff;
+    box-shadow: 0 4px 12px rgba(79, 140, 255, 0.35);
+  }
+
+  .chart-wrap {
+    margin-top: 18px;
+    height: 110px;
+    position: relative;
+  }
+
+  .chart-wrap svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  .chart-empty {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--muted);
+    font-size: 0.85rem;
+  }
+
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin-top: 16px;
+  }
+
+  .stat {
+    background: var(--bg);
+    border: 1px solid var(--panel-border);
+    border-radius: 12px;
+    padding: 10px 12px;
+  }
+
+  .stat .label {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+  }
+
+  .stat .val {
+    font-size: 1.05rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    margin-top: 2px;
+  }
+
+  /* LED card */
+  .led-stage {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 18px;
+    padding: 8px 0 4px;
+  }
+
+  .led-bulb {
+    width: 110px;
+    height: 110px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #3a4358, #1a2030 70%);
+    border: 2px solid var(--panel-border);
+    transition: all 0.35s ease;
+    position: relative;
+  }
+
+  .led-bulb.on {
+    background: radial-gradient(circle at 35% 30%, #fffbe6, var(--led-glow) 55%, #e0a100);
+    border-color: #ffe08a;
+    box-shadow:
+      0 0 25px 6px rgba(255, 209, 102, 0.55),
+      0 0 70px 20px rgba(255, 209, 102, 0.25);
+  }
+
+  .led-state {
+    font-weight: 600;
+    font-size: 0.95rem;
+    color: var(--muted);
+  }
+  .led-state.on { color: var(--led-glow); }
+
+  .switch {
+    position: relative;
+    width: 64px;
+    height: 34px;
+    flex-shrink: 0;
+  }
+
+  .switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+    position: absolute;
+  }
+
+  .switch .slider {
+    position: absolute;
+    inset: 0;
+    background: var(--bg);
+    border: 1px solid var(--panel-border);
+    border-radius: 999px;
+    cursor: pointer;
+    transition: 0.25s;
+  }
+
+  .switch .slider::before {
+    content: "";
+    position: absolute;
+    height: 26px;
+    width: 26px;
+    left: 3px;
+    top: 3px;
+    background: #fff;
+    border-radius: 50%;
+    transition: 0.25s;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+  }
+
+  .switch input:checked + .slider {
+    background: linear-gradient(135deg, #ffb703, #ffd166);
+    border-color: transparent;
+  }
+
+  .switch input:checked + .slider::before {
+    transform: translateX(30px);
+  }
+
+  .switch input:focus-visible + .slider {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
+  }
+
+  .switch input:disabled + .slider {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .led-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: 12px 14px;
+    background: var(--bg);
+    border: 1px solid var(--panel-border);
+    border-radius: 12px;
+  }
+
+  .led-row span {
+    font-weight: 600;
+  }
+
+  .hint {
+    color: var(--muted);
+    font-size: 0.8rem;
+    margin-top: 14px;
+    line-height: 1.5;
+  }
+
+  /* Settings */
+  .settings {
+    margin-top: 20px;
+  }
+
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 12px;
+  }
+
+  .field label {
+    font-size: 0.8rem;
+    color: var(--muted);
+    font-weight: 600;
+  }
+
+  .field input {
+    font: inherit;
+    font-size: 0.95rem;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid var(--panel-border);
+    background: var(--bg);
+    color: var(--text);
+  }
+
+  .field input:focus {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+
+  .row-buttons {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .btn {
+    font: inherit;
+    font-size: 0.9rem;
+    font-weight: 600;
+    padding: 10px 16px;
+    border-radius: 10px;
+    border: 1px solid var(--panel-border);
+    background: var(--bg);
+    color: var(--text);
+    cursor: pointer;
+    transition: transform 0.1s ease, background 0.2s ease;
+  }
+
+  .btn:hover { background: var(--panel); }
+  .btn:active { transform: scale(0.97); }
+
+  .btn.primary {
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    color: #fff;
+    border: none;
+  }
+
+  .toast {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    box-shadow: var(--shadow);
+    padding: 10px 16px;
+    border-radius: 10px;
+    font-size: 0.9rem;
+    opacity: 0;
+    pointer-events: none;
+    transition: all 0.3s ease;
+  }
+
+  .toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+
+  .toast.error { color: var(--bad); }
+&lt;/style&gt;
+&lt;/head&gt;
+&lt;body&gt;
+&lt;div class="wrap"&gt;
+
+  &lt;header&gt;
+    &lt;div&gt;
+      &lt;h1&gt;Sensor Portal&lt;/h1&gt;
+      &lt;p&gt;Live temperature, LED control, and readout settings&lt;/p&gt;
+    &lt;/div&gt;
+    &lt;div id="status" class="status" role="status" aria-live="polite"&gt;
+      &lt;span class="dot"&gt;&lt;/span&gt;
+      &lt;span id="statusText"&gt;Connecting…&lt;/span&gt;
+    &lt;/div&gt;
+  &lt;/header&gt;
+
+  &lt;div class="grid"&gt;
+
+    &lt;!-- Temperature --&gt;
+    &lt;section class="card" aria-labelledby="tempHeading"&gt;
+      &lt;h2 id="tempHeading"&gt;
+        Temperature
+        &lt;div class="segmented" role="group" aria-label="Temperature unit"&gt;
+          &lt;button data-unit="C" aria-pressed="true"&gt;°C&lt;/button&gt;
+          &lt;button data-unit="F" aria-pressed="false"&gt;°F&lt;/button&gt;
+          &lt;button data-unit="K" aria-pressed="false"&gt;K&lt;/button&gt;
+        &lt;/div&gt;
+      &lt;/h2&gt;
+
+      &lt;div class="reading"&gt;
+        &lt;span id="tempValue" class="temp-value"&gt;--.-&lt;/span&gt;
+        &lt;span id="tempUnit" class="temp-unit"&gt;°C&lt;/span&gt;
+      &lt;/div&gt;
+
+      &lt;div class="temp-meta"&gt;
+        &lt;span id="trend" class="trend flat"&gt;● Steady&lt;/span&gt;
+        &lt;span&gt;Updated &lt;span id="lastUpdated"&gt;never&lt;/span&gt;&lt;/span&gt;
+      &lt;/div&gt;
+
+      &lt;div class="chart-wrap"&gt;
+        &lt;svg id="chart" viewBox="0 0 600 110" preserveAspectRatio="none" aria-label="Temperature history"&gt;
+          &lt;defs&gt;
+            &lt;linearGradient id="fill" x1="0" x2="0" y1="0" y2="1"&gt;
+              &lt;stop offset="0%" stop-color="#4f8cff" stop-opacity="0.35"/&gt;
+              &lt;stop offset="100%" stop-color="#4f8cff" stop-opacity="0"/&gt;
+            &lt;/linearGradient&gt;
+            &lt;linearGradient id="line" x1="0" x2="1" y1="0" y2="0"&gt;
+              &lt;stop offset="0%" stop-color="#4f8cff"/&gt;
+              &lt;stop offset="100%" stop-color="#7c5cff"/&gt;
+            &lt;/linearGradient&gt;
+          &lt;/defs&gt;
+          &lt;path id="area" fill="url(#fill)" d=""/&gt;
+          &lt;polyline id="trace" fill="none" stroke="url(#line)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" points=""/&gt;
+        &lt;/svg&gt;
+        &lt;div id="chartEmpty" class="chart-empty"&gt;Waiting for data…&lt;/div&gt;
+      &lt;/div&gt;
+
+      &lt;div class="stats"&gt;
+        &lt;div class="stat"&gt;&lt;div class="label"&gt;Min&lt;/div&gt;&lt;div class="val" id="statMin"&gt;--&lt;/div&gt;&lt;/div&gt;
+        &lt;div class="stat"&gt;&lt;div class="label"&gt;Avg&lt;/div&gt;&lt;div class="val" id="statAvg"&gt;--&lt;/div&gt;&lt;/div&gt;
+        &lt;div class="stat"&gt;&lt;div class="label"&gt;Max&lt;/div&gt;&lt;div class="val" id="statMax"&gt;--&lt;/div&gt;&lt;/div&gt;
+      &lt;/div&gt;
+    &lt;/section&gt;
+
+    &lt;div style="display:flex;flex-direction:column;gap:20px;"&gt;
+
+      &lt;!-- Precision --&gt;
+      &lt;section class="card" aria-labelledby="precHeading"&gt;
+        &lt;h2 id="precHeading"&gt;Precision&lt;/h2&gt;
+        &lt;div class="segmented" role="group" aria-label="Decimal places" id="precGroup"&gt;
+          &lt;button data-prec="0" aria-pressed="false"&gt;0&lt;/button&gt;
+          &lt;button data-prec="1" aria-pressed="true"&gt;1&lt;/button&gt;
+          &lt;button data-prec="2" aria-pressed="false"&gt;2&lt;/button&gt;
+          &lt;button data-prec="3" aria-pressed="false"&gt;3&lt;/button&gt;
+        &lt;/div&gt;
+        &lt;p class="hint"&gt;Decimal places shown on the readout. Higher precision shows more sensor noise.&lt;/p&gt;
+      &lt;/section&gt;
+
+      &lt;!-- LED --&gt;
+      &lt;section class="card" aria-labelledby="ledHeading"&gt;
+        &lt;h2 id="ledHeading"&gt;LED Control&lt;/h2&gt;
+        &lt;div class="led-stage"&gt;
+          &lt;div id="ledBulb" class="led-bulb" aria-hidden="true"&gt;&lt;/div&gt;
+          &lt;div id="ledState" class="led-state"&gt;Off&lt;/div&gt;
+          &lt;div class="led-row"&gt;
+            &lt;span&gt;Power&lt;/span&gt;
+            &lt;label class="switch"&gt;
+              &lt;input type="checkbox" id="ledToggle" aria-label="LED power"&gt;
+              &lt;span class="slider"&gt;&lt;/span&gt;
+            &lt;/label&gt;
+          &lt;/div&gt;
+        &lt;/div&gt;
+      &lt;/section&gt;
+
+    &lt;/div&gt;
+  &lt;/div&gt;
+
+  &lt;!-- Connection settings --&gt;
+  &lt;section class="card settings" aria-labelledby="setHeading"&gt;
+    &lt;h2 id="setHeading"&gt;Connection&lt;/h2&gt;
+    &lt;div class="field"&gt;
+      &lt;label for="apiBase"&gt;Device API base URL (leave blank for same origin)&lt;/label&gt;
+      &lt;input id="apiBase" type="text" placeholder="http://192.168.1.50" autocomplete="off"&gt;
+    &lt;/div&gt;
+    &lt;div class="field"&gt;
+      &lt;label for="pollMs"&gt;Poll interval (ms)&lt;/label&gt;
+      &lt;input id="pollMs" type="number" min="200" step="100" value="1000"&gt;
+    &lt;/div&gt;
+    &lt;div class="row-buttons"&gt;
+      &lt;button class="btn primary" id="applyBtn"&gt;Apply &amp;amp; reconnect&lt;/button&gt;
+      &lt;button class="btn" id="simBtn"&gt;Use simulated sensor&lt;/button&gt;
+      &lt;button class="btn" id="themeBtn"&gt;Toggle theme&lt;/button&gt;
+    &lt;/div&gt;
+  &lt;/section&gt;
+
+&lt;/div&gt;
+
+&lt;div id="toast" class="toast" role="alert"&gt;&lt;/div&gt;
+
+&lt;script&gt;
+/* ==========================================================================
+   CONFIGURATION
+   Expected device API (adjust the paths/shapes to match your firmware):
+     GET  /api/temperature  -&gt;  { "celsius": 23.456 }
+     GET  /api/led          -&gt;  { "on": true }
+     POST /api/led          &lt;-  { "on": true }   returns { "on": true }
+   ========================================================================== */
+const CONFIG = {
+  apiBase: "",
+  pollMs: 1000,
+  endpoints: {
+    temperature: "/api/temperature",
+    led: "/api/led"
+  },
+  historyLength: 120,
+  requestTimeoutMs: 2000
+};
+
+/* ---------- State ---------- */
+const state = {
+  unit: "C",
+  precision: 1,
+  celsius: null,
+  history: [],
+  ledOn: false,
+  online: false,
+  simulated: false,
+  pollTimer: null,
+  simTick: 0,
+  simLedOn: false
+};
+
+/* ---------- Persistence (per-browser preferences) ---------- */
+function loadPrefs() {
+  try {
+    const p = JSON.parse(localStorage.getItem("sensorPortalPrefs") || "{}");
+    if (p.unit) state.unit = p.unit;
+    if (Number.isInteger(p.precision)) state.precision = p.precision;
+    if (p.apiBase !== undefined) CONFIG.apiBase = p.apiBase;
+    if (p.pollMs) CONFIG.pollMs = p.pollMs;
+    if (p.theme) document.documentElement.dataset.theme = p.theme;
+    if (p.simulated !== undefined) state.simulated = p.simulated;
+  } catch (_) { /* storage unavailable, use defaults */ }
+}
+
+function savePrefs() {
+  try {
+    localStorage.setItem("sensorPortalPrefs", JSON.stringify({
+      unit: state.unit,
+      precision: state.precision,
+      apiBase: CONFIG.apiBase,
+      pollMs: CONFIG.pollMs,
+      theme: document.documentElement.dataset.theme || "",
+      simulated: state.simulated
+    }));
+  } catch (_) { /* ignore */ }
+}
+
+/* ---------- Helpers ---------- */
+const $ = (id) =&gt; document.getElementById(id);
+
+function toast(msg, isError = false) {
+  const t = $("toast");
+  t.textContent = msg;
+  t.className = "toast show" + (isError ? " error" : "");
+  clearTimeout(toast._h);
+  toast._h = setTimeout(() =&gt; { t.className = "toast"; }, 2400);
+}
+
+function convert(c, unit) {
+  if (unit === "F") return c * 9 / 5 + 32;
+  if (unit === "K") return c + 273.15;
+  return c;
+}
+
+function unitSymbol(unit) {
+  return unit === "F" ? "°F" : unit === "K" ? "K" : "°C";
+}
+
+/* Map temperature (°C) to a color from cool blue to warm red */
+function tempColor(c) {
+  const t = Math.max(0, Math.min(40, c));
+  const hue = 215 - (t / 40) * 215; // 215 (blue) -&gt; 0 (red)
+  return `hsl(${hue}, 85%, 62%)`;
+}
+
+async function fetchWithTimeout(url, options = {}) {
+  const controller = new AbortController();
+  const timer = setTimeout(() =&gt; controller.abort(), CONFIG.requestTimeoutMs);
+  try {
+    const res = await fetch(url, { ...options, signal: controller.signal });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    return await res.json();
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/* ---------- Device I/O (real hardware, with simulator fallback) ---------- */
+const device = {
+  url(path) {
+    return (CONFIG.apiBase || "").replace(/\/$/, "") + path;
+  },
+
+  async readTemperature() {
+    if (state.simulated) return simulator.temperature();
+    const data = await fetchWithTimeout(this.url(CONFIG.endpoints.temperature));
+    if (typeof data.celsius !== "number") throw new Error("Bad temperature payload");
+    return data.celsius;
+  },
+
+  async readLed() {
+    if (state.simulated) return state.simLedOn;
+    const data = await fetchWithTimeout(this.url(CONFIG.endpoints.led));
+    return !!data.on;
+  },
+
+  async writeLed(on) {
+    if (state.simulated) {
+      state.simLedOn = on;
+      return on;
+    }
+    const data = await fetchWithTimeout(this.url(CONFIG.endpoints.led), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ on })
+    });
+    return !!data.on;
+  }
+};
+
+/* Simulated sensor so the UI can be previewed without hardware */
+const simulator = {
+  temperature() {
+    state.simTick += 1;
+    const base = 22 + 3 * Math.sin(state.simTick / 25) + 1.2 * Math.sin(state.simTick / 7);
+    const noise = (Math.random() - 0.5) * 0.15;
+    const ledBoost = state.simLedOn ? 1.5 : 0;
+    return base + ledBoost + noise;
+  }
+};
+
+/* ---------- Status ---------- */
+function setStatus(kind, text) {
+  const el = $("status");
+  el.className = "status " + kind;
+  $("statusText").textContent = text;
+}
+
+/* ---------- Rendering ---------- */
+function renderTemperature() {
+  const valEl = $("tempValue");
+  if (state.celsius === null) {
+    valEl.textContent = "--";
+    return;
+  }
+  const shown = convert(state.celsius, state.unit);
+  valEl.textContent = shown.toFixed(state.precision);
+  valEl.style.color = tempColor(state.celsius);
+  $("tempUnit").textContent = unitSymbol(state.unit);
+  renderStats();
+  renderChart();
+}
+
+function renderTrend() {
+  const h = state.history;
+  const el = $("trend");
+  if (h.length &lt; 5) {
+    el.className = "trend flat";
+    el.textContent = "● Gathering data";
+    return;
+  }
+  const recent = h.slice(-5);
+  const delta = recent[recent.length - 1] - recent[0];
+  if (delta &gt; 0.05) {
+    el.className = "trend up";
+    el.textContent = "▲ Rising";
+  } else if (delta &lt; -0.05) {
+    el.className = "trend down";
+    el.textContent = "▼ Falling";
+  } else {
+    el.className = "trend flat";
+    el.textContent = "● Steady";
+  }
+}
+
+function renderStats() {
+  const h = state.history;
+  if (!h.length) return;
+  const fmt = (c) =&gt; convert(c, state.unit).toFixed(state.precision) + " " + unitSymbol(state.unit);
+  const min = Math.min(...h);
+  const max = Math.max(...h);
+  const avg = h.reduce((a, b) =&gt; a + b, 0) / h.length;
+  $("statMin").textContent = fmt(min);
+  $("statAvg").textContent = fmt(avg);
+  $("statMax").textContent = fmt(max);
+}
+
+function renderChart() {
+  const h = state.history;
+  if (h.length &lt; 2) {
+    $("chartEmpty").style.display = "flex";
+    $("trace").setAttribute("points", "");
+    $("area").setAttribute("d", "");
+    return;
+  }
+  $("chartEmpty").style.display = "none";
+
+  const W = 600, H = 110, pad = 8;
+  const lo = Math.min(...h) - 0.5;
+  const hi = Math.max(...h) + 0.5;
+  const span = Math.max(hi - lo, 0.5);
+  const step = W / (CONFIG.historyLength - 1);
+
+  const pts = h.map((v, i) =&gt; {
+    const x = i * step + (W - (h.length - 1) * step);
+    const y = pad + (1 - (v - lo) / span) * (H - pad * 2);
+    return [x, y];
+  });
+
+  const line = pts.map(([x, y]) =&gt; `${x.toFixed(1)},${y.toFixed(1)}`).join(" ");
+  const area = `M${pts[0][0].toFixed(1)},${H} L` + line.split(" ").join(" L") +
+               ` L${pts[pts.length - 1][0].toFixed(1)},${H} Z`;
+
+  $("trace").setAttribute("points", line);
+  $("area").setAttribute("d", area);
+}
+
+function renderLed() {
+  const on = state.ledOn;
+  $("ledBulb").classList.toggle("on", on);
+  $("ledState").textContent = on ? "On" : "Off";
+  $("ledState").classList.toggle("on", on);
+  $("ledToggle").checked = on;
+}
+
+function renderPrecision() {
+  document.querySelectorAll("#precGroup button").forEach((b) =&gt; {
+    b.setAttribute("aria-pressed", String(Number(b.dataset.prec) === state.precision));
+  });
+}
+
+function renderUnit() {
+  document.querySelectorAll("[data-unit]").forEach((b) =&gt; {
+    b.setAttribute("aria-pressed", String(b.dataset.unit === state.unit));
+  });
+  $("tempUnit").textContent = unitSymbol(state.unit);
+}
+
+/* ---------- Polling ---------- */
+async function poll() {
+  try {
+    const c = await device.readTemperature();
+    state.celsius = c;
+    state.history.push(c);
+    if (state.history.length &gt; CONFIG.historyLength) state.history.shift();
+
+    if (!state.online &amp;&amp; !state.simulated) toast("Connected to sensor");
+    state.online = true;
+
+    setStatus(state.simulated ? "sim" : "online", state.simulated ? "Simulated sensor" : "Connected");
+    $("lastUpdated").textContent = new Date().toLocaleTimeString();
+
+    renderTemperature();
+    renderTrend();
+  } catch (err) {
+    if (state.online || state.celsius === null) {
+      state.online = false;
+      if (!state.simulated) {
+        setStatus("offline", "Sensor unreachable");
+        toast("Sensor unreachable. Check the API base URL.", true);
+      }
+    }
+  }
+}
+
+async function syncLed() {
+  try {
+    state.ledOn = await device.readLed();
+    renderLed();
+  } catch (_) { /* keep last known state */ }
+}
+
+function startPolling() {
+  clearInterval(state.pollTimer);
+  poll();
+  syncLed();
+  state.pollTimer = setInterval(poll, CONFIG.pollMs);
+}
+
+/* ---------- Event handlers ---------- */
+document.querySelectorAll("[data-unit]").forEach((b) =&gt; {
+  b.addEventListener("click", () =&gt; {
+    state.unit = b.dataset.unit;
+    renderUnit();
+    renderTemperature();
+    savePrefs();
+  });
+});
+
+document.querySelectorAll("#precGroup button").forEach((b) =&gt; {
+  b.addEventListener("click", () =&gt; {
+    state.precision = Number(b.dataset.prec);
+    renderPrecision();
+    renderTemperature();
+    savePrefs();
+  });
+});
+
+$("ledToggle").addEventListener("change", async (e) =&gt; {
+  const want = e.target.checked;
+  const toggle = e.target;
+  toggle.disabled = true;
+  try {
+    state.ledOn = await device.writeLed(want);
+    renderLed();
+  } catch (err) {
+    toast("Failed to change LED state", true);
+    e.target.checked = state.ledOn;
+  } finally {
+    toggle.disabled = false;
+  }
+});
+
+$("applyBtn").addEventListener("click", () =&gt; {
+  CONFIG.apiBase = $("apiBase").value.trim();
+  const ms = parseInt($("pollMs").value, 10);
+  CONFIG.pollMs = Number.isFinite(ms) &amp;&amp; ms &gt;= 200 ? ms : 1000;
+  state.simulated = false;
+  state.history = [];
+  state.online = false;
+  savePrefs();
+  startPolling();
+});
+
+$("simBtn").addEventListener("click", () =&gt; {
+  state.simulated = true;
+  state.history = [];
+  state.online = false;
+  savePrefs();
+  toast("Using simulated sensor");
+  startPolling();
+});
+
+$("themeBtn").addEventListener("click", () =&gt; {
+  const root = document.documentElement;
+  const current = root.dataset.theme || (matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark");
+  root.dataset.theme = current === "dark" ? "light" : "dark";
+  savePrefs();
+});
+
+/* ---------- Init ---------- */
+function init() {
+  loadPrefs();
+  $("apiBase").value = CONFIG.apiBase;
+  $("pollMs").value = CONFIG.pollMs;
+  renderUnit();
+  renderPrecision();
+  renderLed();
+  renderChart();
+  startPolling();
+}
+
+init();
+&lt;/script&gt;
+&lt;/body&gt;
+&lt;/html&gt;</code></pre>
+</details>
+<details>
+<summary>
+User Prompt
+</summary>
+<p>Write me a C function to carry out a SPI transaction to retrieve a temperature reading from a DS1722 sensor. Make use of CMSIS libraries for the STM32L432KC.</p>
+</details>
+<details>
+<summary>
+AI Response
+</summary>
+<p>This function reads the two-byte temperature register from a DS1722 using direct CMSIS register access on SPI1. It doesn’t depend on the HAL.</p>
+<pre><code>c
+/*
+ * ds1722.c
+ * DS1722 digital thermometer over SPI for STM32L432KC (CMSIS, no HAL).
+ *
+ * Wiring (SPI1):
+ *   PA5  -&gt; SCK
+ *   PA6  &lt;- MISO (DS1722 SO)
+ *   PA7  -&gt; MOSI (DS1722 SI)
+ *   PA4  -&gt; CS   (active low, GPIO)
+ *
+ * Assumes the default 4 MHz MSI clock feeds PCLK2, so the SPI prescaler
+ * divides by 2 for a 2 MHz SCK (DS1722 max is 2 MHz).
+ */
+
+#include "stm32l432xx.h"   /* CMSIS device header (includes core_cm4.h) */
+#include &lt;stdint.h&gt;
+
+#define DS1722_CS_PORT      GPIOA
+#define DS1722_CS_PIN       4U
+
+#define DS1722_REG_TEMP_MSB 0x01U   /* Temperature MSB register */
+#define DS1722_REG_TEMP_LSB 0x02U   /* Temperature LSB register */
+
+#define DS1722_READ_MASK    0x00U   /* Bit 7 = 0 for read  */
+#define DS1722_WRITE_MASK   0x80U   /* Bit 7 = 1 for write */
+
+#define SPI_TIMEOUT_LOOPS   10000U
+
+typedef enum {
+    DS1722_OK = 0,
+    DS1722_ERR_TIMEOUT,
+    DS1722_ERR_NULL
+} ds1722_status_t;
+
+/* -------------------------------------------------------------------------
+ * Low-level helpers
+ * ------------------------------------------------------------------------- */
+
+static inline void ds1722_cs_low(void)
+{
+    DS1722_CS_PORT-&gt;BSRR = (1U &lt;&lt; (DS1722_CS_PIN + 16U));   /* reset bit */
+}
+
+static inline void ds1722_cs_high(void)
+{
+    DS1722_CS_PORT-&gt;BSRR = (1U &lt;&lt; DS1722_CS_PIN);           /* set bit */
+}
+
+/*
+ * Full-duplex transfer of one byte. Returns the received byte, or
+ * a negative value on timeout.
+ */
+static int spi1_transfer_byte(uint8_t tx, uint8_t *rx)
+{
+    uint32_t timeout = SPI_TIMEOUT_LOOPS;
+
+    /* Wait until the transmit buffer is empty */
+    while (!(SPI1-&gt;SR &amp; SPI_SR_TXE)) {
+        if (--timeout == 0U) return -1;
+    }
+
+    /* 8-bit access to DR so the frame is 8 bits, not 16 */
+    *(volatile uint8_t *)&amp;SPI1-&gt;DR = tx;
+
+    /* Wait for a received byte */
+    timeout = SPI_TIMEOUT_LOOPS;
+    while (!(SPI1-&gt;SR &amp; SPI_SR_RXNE)) {
+        if (--timeout == 0U) return -1;
+    }
+
+    *rx = *(volatile uint8_t *)&amp;SPI1-&gt;DR;
+    return 0;
+}
+
+/* -------------------------------------------------------------------------
+ * Initialization (call once at startup, after the system clock is set up)
+ * ------------------------------------------------------------------------- */
+
+void ds1722_spi_init(void)
+{
+    /* 1. Enable clocks for GPIOA and SPI1 */
+    RCC-&gt;AHB2ENR |= RCC_AHB2ENR_GPIOAEN;
+    RCC-&gt;APB2ENR |= RCC_APB2ENR_SPI1EN;
+
+    /* 2. PA5 (SCK), PA6 (MISO), PA7 (MOSI) -&gt; alternate function AF5 */
+    GPIOA-&gt;MODER &amp;= ~((3U &lt;&lt; (5U * 2U)) | (3U &lt;&lt; (6U * 2U)) | (3U &lt;&lt; (7U * 2U)));
+    GPIOA-&gt;MODER |=  ((2U &lt;&lt; (5U * 2U)) | (2U &lt;&lt; (6U * 2U)) | (2U &lt;&lt; (7U * 2U)));
+    GPIOA-&gt;AFR[0] &amp;= ~((0xFU &lt;&lt; (5U * 4U)) | (0xFU &lt;&lt; (6U * 4U)) | (0xFU &lt;&lt; (7U * 4U)));
+    GPIOA-&gt;AFR[0] |=  ((5U   &lt;&lt; (5U * 4U)) | (5U   &lt;&lt; (6U * 4U)) | (5U   &lt;&lt; (7U * 4U)));
+    GPIOA-&gt;OSPEEDR |= ((3U &lt;&lt; (5U * 2U)) | (3U &lt;&lt; (7U * 2U)));  /* high speed SCK/MOSI */
+
+    /* 3. PA4 as CS: plain push-pull output, idle high */
+    GPIOA-&gt;MODER &amp;= ~(3U &lt;&lt; (DS1722_CS_PIN * 2U));
+    GPIOA-&gt;MODER |=  (1U &lt;&lt; (DS1722_CS_PIN * 2U));
+    ds1722_cs_high();
+
+    /* 4. SPI1 configuration */
+    SPI1-&gt;CR1 = 0;                       /* disable before configuring */
+    SPI1-&gt;CR1 |= SPI_CR1_MSTR;           /* master mode */
+    SPI1-&gt;CR1 |= SPI_CR1_BR_0 &amp; 0;       /* BR = 000 -&gt; fPCLK/2 */
+    SPI1-&gt;CR1 |= SPI_CR1_SSM | SPI_CR1_SSI; /* software NSS, avoid MODF */
+    SPI1-&gt;CR1 &amp;= ~SPI_CR1_LSBFIRST;      /* MSB first */
+    SPI1-&gt;CR1 &amp;= ~SPI_CR1_CPOL;          /* CPOL = 0 */
+    SPI1-&gt;CR1 |= SPI_CR1_CPHA;           /* CPHA = 1 -&gt; SPI mode 1 (verify vs datasheet) */
+
+    /* 5. 8-bit data frame, RXNE at 8-bit threshold */
+    SPI1-&gt;CR2 = SPI_CR2_FRXTH | (7U &lt;&lt; SPI_CR2_DS_Pos);
+
+    /* 6. Enable SPI */
+    SPI1-&gt;CR1 |= SPI_CR1_SPE;
+}
+
+/* -------------------------------------------------------------------------
+ * Temperature read
+ * ------------------------------------------------------------------------- */
+
+/*
+ * Reads the DS1722 temperature register.
+ *
+ * Transaction (CS held low for the whole frame):
+ *   Byte 1: command  = 0x01 (read, start at temperature MSB)
+ *   Byte 2: dummy    -&gt; receive MSB
+ *   Byte 3: dummy    -&gt; receive LSB
+ *
+ * On success, *temp_c is set in degrees Celsius.
+ */
+ds1722_status_t ds1722_read_temperature(float *temp_c)
+{
+    if (temp_c == NULL) {
+        return DS1722_ERR_NULL;
+    }
+
+    uint8_t rx;
+    uint8_t msb = 0U;
+    uint8_t lsb = 0U;
+    int     ret;
+
+    ds1722_cs_low();
+
+    /* Command byte: read, temperature register */
+    ret = spi1_transfer_byte((DS1722_REG_TEMP_MSB &amp; 0x7FU) | DS1722_READ_MASK, &amp;rx);
+    if (ret != 0) goto timeout;
+
+    /* Clock out MSB */
+    ret = spi1_transfer_byte(0xFFU, &amp;msb);
+    if (ret != 0) goto timeout;
+
+    /* Clock out LSB */
+    ret = spi1_transfer_byte(0xFFU, &amp;lsb);
+    if (ret != 0) goto timeout;
+
+    /* Wait for the bus to go idle before releasing CS */
+    {
+        uint32_t t = SPI_TIMEOUT_LOOPS;
+        while (SPI1-&gt;SR &amp; SPI_SR_BSY) {
+            if (--t == 0U) goto timeout;
+        }
+    }
+
+    ds1722_cs_high();
+
+    /* Combine into a signed 16-bit value; 8.8 fixed point (1/256 degC per LSB) */
+    int16_t raw = (int16_t)(((uint16_t)msb &lt;&lt; 8) | lsb);
+    *temp_c = (float)raw / 256.0f;
+
+    return DS1722_OK;
+
+timeout:
+    ds1722_cs_high();
+    return DS1722_ERR_TIMEOUT;
+}
+
+Example usage:
+
+c
+int main(void)
+{
+    /* ... SystemClock_Config() / default MSI is fine ... */
+    ds1722_spi_init();
+
+    float temperature;
+    if (ds1722_read_temperature(&amp;temperature) == DS1722_OK) {
+        /* Use temperature (degrees C) */
+    }
+
+    while (1) { }
+}</code></pre>
+<p>Things to verify against the DS1722 datasheet before relying on it:</p>
+<p>SPI mode. I set CPOL=0, CPHA=1 (mode 1). Confirm this against the datasheet’s timing diagram, since flipping it is the most common cause of garbage readings. Temperature format. The code assumes a 16-bit, two’s-complement value with 1/256 °C per LSB. The DS1722 can report at lower resolutions, and the unused low bits depend on the resolution setting in the configuration register. Check the register map and adjust the scaling if needed. Configuration. The sensor’s power-up defaults may not be continuous conversion at the resolution you want. If you need a specific mode, write the configuration register (address 0x00, write mask 0x80) once after ds1722_spi_init(). Clock. The prescaler assumes PCLK2 is 4 MHz. If you change the system clock, adjust BR so SCK stays at or below 2 MHz.</p>
+</details>
+</section>
+<section id="summary" class="level3">
+<h3 class="anchored" data-anchor-id="summary">Summary</h3>
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<div class="quarto-figure quarto-figure-center">
+<figure class="figure">
+<p><a href="images/lab6_AI_website.png" class="lightbox" data-gallery="quarto-lightbox-gallery-4" title="Figure 4: The AI-generated web portal reading the DS1722."><img src="images/lab6_AI_website.png" class="img-fluid quarto-figure quarto-figure-center figure-img" style="width:90.0%" alt="Figure 4: The AI-generated web portal reading the DS1722."></a></p>
+</figure>
+</div>
+<figcaption>Figure 4: The AI-generated web portal reading the DS1722.</figcaption>
+</figure>
+</div>
+<p>AI’s website design is very meticulous, much better than what I had even envisioned. It included a much prettier user interface, included everything essential and even added temperature unit conversion and light/dark page style conversion.</p>
+<p>The SPI function AI wrote on the other hand was less reliable. It drove CE active low when the DS1722’s CE is active high, and swapped the MSB (0x02) and LSB (0x01) addresses. Moreover, without enough context, it put MISO on PA6 which is my LED pin, further preventing the code it generator from working when plugged directly into my project. Therefore, I think the LLM is great for front-end design, but for low-level drivers it is still necessary to verify every register and design choice.</p>
 
 
+</section>
 </section>
 
 <a onclick="window.scrollTo(0, 0); return false;" role="button" id="quarto-back-to-top"><i class="bi bi-arrow-up"></i> Back to top</a></main> <!-- /main -->
