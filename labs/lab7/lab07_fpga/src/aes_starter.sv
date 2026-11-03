@@ -72,15 +72,50 @@ endmodule
 //        [127:96]  [95:64] [63:32] [31:0]      w[0]    w[1]    w[2]    w[3]
 /////////////////////////////////////////////
 
-module aes_core(input  logic         clk, 
-                input  logic         load,
-                input  logic [127:0] key, 
-                input  logic [127:0] plaintext, 
-                output logic         done, 
-                output logic [127:0] cyphertext);
+module aes_core(
+	input	logic			clk,
+	input	logic			load,
+	input	logic [127:0]	key,
+	input	logic [127:0]	plaintext,
+	output	logic			done,
+	output	logic [127:0]	cyphertext
+);
 
-    // TODO: Your code goes here
-    
+	logic [127:0]	state, round_key, next_key, key_in;
+	logic [127:0]	sub_out, shift_out, mix_out, round_in, add_out;
+	logic [1:0]		data_sel;
+	logic			key_sel, en;
+	logic [7:0]		rcon;
+
+	aes_controller controller(clk, load, en, key_sel, data_sel, rcon, done);
+
+	// we use the original key for the initial round, expanded key afterwards
+	assign key_in = key_sel ? key : next_key;
+
+	// Round registers
+	always_ff @(posedge clk)
+		if (en) begin
+			state     <= add_out;
+			round_key <= key_in;
+		end
+
+	sub_bytes     sb(clk, state, sub_out);
+	shift_rows    sr(sub_out, shift_out);
+	mixcolumns    mc(shift_out, mix_out);
+	key_expansion ke(clk, round_key, rcon, next_key);
+
+	// Datapath: 00 for initial round, 01 for normal round, 10 for final round with no MixColumns
+	always_comb
+		case (data_sel)
+			2'b00:   round_in = plaintext;
+			2'b01:   round_in = mix_out;
+			default: round_in = shift_out;
+		endcase
+
+	add_round_key add(round_in, key_in, add_out);
+
+	assign cyphertext = state;
+
 endmodule
 
 /////////////////////////////////////////////
