@@ -7,13 +7,8 @@
       "/labs/lab3/lab3.html",
       "/labs/lab4/lab4.html",
       "/labs/lab5/lab5.html",
-      "/labs/lab6/lab6.html"
-    ]
-  },
-  {
-    "listing": "/blog.html",
-    "items": [
-      "/posts/first-post.html"
+      "/labs/lab6/lab6.html",
+      "/labs/lab7/lab7.html"
     ]
   },
   {
@@ -22,12 +17,19 @@
       "/projects/multicycle-riscv/index.html",
       "/projects/water-quality-robot/index.html",
       "/projects/rocketry/index.html",
+      "/labs/lab7/lab7.html",
       "/labs/lab6/lab6.html",
       "/labs/lab5/lab5.html",
       "/labs/lab4/lab4.html",
       "/labs/lab3/lab3.html",
       "/labs/lab2/lab2.html",
       "/labs/lab1/lab1.html"
+    ]
+  },
+  {
+    "listing": "/blog.html",
+    "items": [
+      "/posts/first-post.html"
     ]
   },
   {
@@ -40,6 +42,7 @@
       "/projects/logic-board/index.html",
       "/projects/misc/index.html",
       "/projects/rocketry/index.html",
+      "/labs/lab7/lab7.html",
       "/labs/lab6/lab6.html",
       "/labs/lab5/lab5.html",
       "/labs/lab4/lab4.html",
