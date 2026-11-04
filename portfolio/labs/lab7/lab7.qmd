@@ -76,78 +76,12 @@ The source code for the project can be found in the associated [GitHub repositor
 
 ### Block Diagram
 
-<!-- TODO: top level block diagram -->
-![Figure 3: Top level block diagram of the SystemVerilog design.](images/lab7_block_diagram_top_level.jpg)
-
-<details>
-<summary>Block diagram: aes_top</summary>
-
-<!-- TODO -->
-![Figure 3a: Internal block diagram of aes_top](images/lab7_block_diagram_aes_top.jpg)
-
-</details>
-
-<details>
-<summary>Block diagram: aes_spi</summary>
-
-<!-- TODO -->
-![Figure 3b: Internal block diagram of aes_spi](images/lab7_block_diagram_aes_spi.jpg)
-
-</details>
+![Figure 3: aes block diagram.](images/lab7_aes_block_diagram.jpg)
 
 <details>
 <summary>Block diagram: aes_core</summary>
 
-<!-- TODO -->
-![Figure 3c: Internal block diagram of aes_core, the datapath](images/lab7_block_diagram_aes_core.jpg)
-
-</details>
-
-<details>
-<summary>Block diagram: aes_controller</summary>
-
-<!-- TODO -->
-![Figure 3d: Internal block diagram of aes_controller, the main FSM and round counter](images/lab7_block_diagram_aes_controller.jpg)
-
-</details>
-
-<details>
-<summary>Block diagram: sub_bytes and sbox_sync</summary>
-
-<!-- TODO -->
-![Figure 3e: Internal block diagram of sub_bytes and sbox_sync](images/lab7_block_diagram_sub_bytes.jpg)
-
-</details>
-
-<details>
-<summary>Block diagram: shift_rows</summary>
-
-<!-- TODO -->
-![Figure 3f: Internal block diagram of shift_rows](images/lab7_block_diagram_shift_rows.jpg)
-
-</details>
-
-<details>
-<summary>Block diagram: mixcolumns, mixcolumn and galoismult</summary>
-
-<!-- TODO -->
-![Figure 3g: Internal block diagram of mixcolumns, mixcolumn and galoismult](images/lab7_block_diagram_mixcolumns.jpg)
-
-</details>
-
-<details>
-<summary>Block diagram: add_round_key</summary>
-
-<!-- TODO -->
-![Figure 3h: Internal block diagram of add_round_key](images/lab7_block_diagram_add_round_key.jpg)
-
-</details>
-
-<details>
-<summary>Block diagram: key_expansion</summary>
-
-<!-- TODO -->
-![Figure 3i: Internal block diagram of key_expansion](images/lab7_block_diagram_key_expansion.jpg)
+![Figure 4: aes_core block diagram.](images/lab7_aes_core_block_diagram.jpg)
 
 </details>
 
@@ -155,16 +89,14 @@ The source code for the project can be found in the associated [GitHub repositor
 
 ### Testbench Simulation
 
-<!-- TODO: screenshot -->
-![Figure 4: QuestaSim simulation of testbench_aes_spi](images/lab7_aes_spi_testbench.png)
+![Figure 5: QuestaSim simulation of testbench_aes_spi](images/lab7_aes_spi_testbench.png)
 
-Figure 4 shows the full system. While `load` is high, the plaintext and key are shifted in on `sdi`. After `load` goes low, the state register steps through the "Start of Round" values of FIPS-197 Appendix B every two cycles, and `done` rises with the ciphertext `3925841d02dc09fbdc118597196a0b32`, which is then shifted out on `sdo`. The testbench ran successfully with no errors.
+Figure 5 shows the full system. While `load` is high, the plaintext and key are shifted in on `sdi`. After `load` goes low, the state register steps through the "Start of Round" values of FIPS-197 Appendix B every two cycles, and `done` rises with the ciphertext `3925841d02dc09fbdc118597196a0b32`, which is then shifted out on `sdo`. The testbench ran successfully with no errors.
 
 <details>
 <summary>AES core testbench</summary>
 
-<!-- TODO: screenshot -->
-![Figure 5: QuestaSim simulation of testbench_aes_core](images/lab7_aes_core_testbench.png)
+![Figure 6: QuestaSim simulation of testbench_aes_core](images/lab7_aes_core_testbench.png)
 
 `aes_core` produces `3925841d02dc09fbdc118597196a0b32` and asserts `done` 21 cycles after `load` goes low. The testbench ran successfully with no errors.
 
@@ -374,4 +306,6 @@ endmodule
 
 ### Summary
 
-The first implementation with context is a lot simpler than the second implementation, where AI translated a code piece into system verilog.
+The first implementation with context is a lot simpler than the second implementation, where AI translated a code piece into system verilog. Response 1 is very close to my `key_expansion` implementation except that it computes Rcon inside the module with a `function automatic`, a construct I haven't used before, while my controller generates `rcon` and passes it in. It also assumes a purely combinational SubWord, which doesn't fit my design since my sbox has to be synchronous to go into RAM on the iCE40.
+
+Response 2 is a correct translation of the pseudo code, but without knowing it was AES, the model only built the general case Overall, AI is good at translating pseudo code, but it can't make design decisions such as hardware reuse or bit ordering without being given that context. Next time I would include my module headers and architecture in the prompt.
