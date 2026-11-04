@@ -8,7 +8,7 @@ categories:
   - SystemVerilog
   - SPI
 draft: false
-image: images/aes_fsm_main.png
+image: images/lab7_main_fsm.jpg
 ---
 
 ## Introduction
