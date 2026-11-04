@@ -58,11 +58,11 @@ The control logic is in `aes_controller`, separate from the datapath. It drives 
 
 #### State Transition Diagrams
 
-![Figure 1: State transition diagram for the main FSM in aes_controller.](images/aes_fsm_main.png){width=80% fig-align="center"}
+![Figure 1: State transition diagram for the main FSM in aes_controller.](images/lab7_main_fsm.jpg){width=80% fig-align="center"}
 
 The main FSM stays in LOAD while `load` is high. Once `load` goes low, it alternates between SUB and EXECUTE once per round, and moves to DONE after the EXECUTE where `last` is high. A high `load` returns it to LOAD from any state.
 
-![Figure 2: State transition diagram for the round counter in aes_controller.](images/aes_fsm_round_counter.png){width=90% fig-align="center"}
+![Figure 2: State transition diagram for the round counter in aes_controller.](images/lab7_counter_fsm.jpg){width=90% fig-align="center"}
 
 The round counter resets to 1 while the main FSM is in LOAD and increments in each EXECUTE. It reaches 11 after the last round, which is harmless since `en` is low in DONE.
 

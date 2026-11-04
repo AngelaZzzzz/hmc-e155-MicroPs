@@ -2,8 +2,7 @@
 // Email: 	angzheng@hmc.edu
 // Date: 	10/30/2026
 //
-// Purpose: SubBytes (FIPS-197 5.1.1). Sixteen synchronous sboxes, so the output is valid
-//			one cycle after the input.
+// Purpose: SubBytes (FIPS-197 5.1.1).
 
 module sub_bytes(
 	input	logic			clk,

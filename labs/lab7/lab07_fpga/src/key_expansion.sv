@@ -2,9 +2,8 @@
 // Email: 	angzheng@hmc.edu
 // Date: 	10/30/2026
 //
-// Purpose: One step of KeyExpansion (FIPS-197 5.2) for Nk = 4. Produces the next round key
-//			from the previous one. SubWord uses synchronous sboxes, so next_key is valid one
-//			cycle after prev_key is applied.
+// Purpose: One step of KeyExpansion (FIPS-197 5.2) for Nk = 4, producing the next round key
+//			from the previous one.
 
 module key_expansion(
 	input	logic			clk,
